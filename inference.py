@@ -1,18 +1,41 @@
 import torch
 import json
+import yaml
 from transformers import AutoTokenizer
+from src.bert_layers.configuration_bert import FlexBertConfig
 from src.bert_layers.model_re import FlexBertForRelationExtraction
 
 class RelationExtractor:
-    def __init__(self, model_path, device='cuda'):
+    def __init__(self, model_path, config_path="config.yaml", device='cuda'):
+        # 加载配置
+        with open(config_path, 'r', encoding='utf-8') as f:
+            self.config = yaml.safe_load(f)
+            
         self.device = torch.device(device if torch.cuda.is_available() else 'cpu')
         self.tokenizer = AutoTokenizer.from_pretrained(model_path)
-        self.model = FlexBertForRelationExtraction.from_pretrained(model_path)
+        
+        # 使用配置初始化模型
+        model_config = FlexBertConfig.from_pretrained(model_path)
+        for key in [
+            'hidden_size', 'num_hidden_layers', 'num_attention_heads', 'intermediate_size',
+            'hidden_activation', 'max_position_embeddings', 'norm_eps', 'norm_bias',
+            'global_rope_theta', 'attention_bias', 'attention_dropout',
+            'global_attn_every_n_layers', 'local_attention', 'local_rope_theta',
+            'embedding_dropout', 'mlp_bias', 'mlp_dropout', 'classifier_pooling',
+            'classifier_dropout', 'hidden_dropout_prob', 'attention_probs_dropout_prob'
+        ]:
+            if key in self.config['model']:
+                setattr(model_config, key, self.config['model'][key])
+        
+        self.model = FlexBertForRelationExtraction.from_pretrained(
+            model_path,
+            config=model_config
+        )
         self.model.to(self.device)
         self.model.eval()
         
         # 加载 schema
-        self.schema = self.load_schema()
+        self.schema = self.load_schema(self.config['data']['schema_file'])
         self.id2relation = {idx: rel for rel, idx in self.relation2id.items()}
         
     def load_schema(self, schema_file="data/53_schemas.jsonl"):

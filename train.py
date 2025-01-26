@@ -1,17 +1,17 @@
 import json
 import torch
+import yaml
+import logging
+import os
+import argparse
 from modelscope import AutoTokenizer
-from transformers import TrainingArguments
 from torch.utils.data import Dataset, DataLoader
 from src.bert_layers.configuration_bert import FlexBertConfig
 from src.bert_layers.model_re import FlexBertForRelationExtraction
 from transformers import get_linear_schedule_with_warmup
 from sklearn.metrics import precision_recall_fscore_support
-import numpy as np
 from torch.nn.utils import clip_grad_norm_
 from tqdm import tqdm
-import logging
-import os
 
 # 设置日志
 logging.basicConfig(
@@ -21,8 +21,24 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# 添加命令行参数解析
+def parse_args():
+    parser = argparse.ArgumentParser(description="训练实体关系抽取模型")
+    parser.add_argument('--config', type=str, default='config.yaml', help='配置文件路径')
+    return parser.parse_args()
+
+# 加载配置
+def load_config(config_path):
+    with open(config_path, 'r', encoding='utf-8') as f:
+        return yaml.safe_load(f)
+
 # 设置设备
-device = torch.device("cuda" if torch.cuda.is_available() else "mps")
+def set_device(config):
+    if config['device']['use_cuda'] and torch.cuda.is_available():
+        return torch.device("cuda")
+    elif config['device']['use_mps'] and torch.backends.mps.is_available():
+        return torch.device("mps")
+    return torch.device("cpu")
 
 class CMeIEDataset(Dataset):
     def __init__(self, data_file, tokenizer, schema_file, max_length=512):
@@ -258,6 +274,11 @@ def evaluate(model, data_loader, device):
             
             if relations is not None and len(outputs) > 3:
                 relation_logits = outputs[3]
+                
+                # 确保relation_logits的batch_size与relations匹配
+                if relation_logits.size(0) != relations.size(0):
+                    relation_logits = relation_logits.expand(relations.size(0), -1)
+                
                 relation_preds = torch.argmax(relation_logits, dim=-1)
                 
                 # 使用布尔索引前先展平张量
@@ -288,166 +309,185 @@ def evaluate(model, data_loader, device):
     }
 
 def main():
-    config = FlexBertConfig(
-        vocab_size=50368,
-        hidden_size=1024,   
-        num_hidden_layers=24,
-        num_attention_heads=16,
-        intermediate_size=4096,
-        hidden_act="silu",  # ModernBERT 默认使用 silu
-        hidden_dropout_prob=0.1,
-        attention_probs_dropout_prob=0.0,
-        max_position_embeddings=512,
-        bert_layer="prenorm",
-        attention_layer="base",
-        embedding_layer="absolute_pos",
-        encoder_layer="base",
-        padding="padded",  
-        use_fa2=False,  
-        compile_model=False,
-        normalization="layernorm",
-        norm_kwargs={"eps": 1e-6},
-        embed_norm=True,
-        embed_dropout_prob=0.1,
-        mlp_layer="mlp",
-        mlp_dropout_prob=0.1,
-        attn_qkv_bias=True,
-        attn_out_bias=True,
-        num_relations=53,
-        entity_types=["疾病", "症状", "检查", "手术", "药物", "其他治疗", "部位", "社会学", "流行病学", "预后", "其他"],
-    )
+    # 解析命令行参数
+    args = parse_args()
     
-    tokenizer = AutoTokenizer.from_pretrained("answerdotai/ModernBERT-large")
-    model = FlexBertForRelationExtraction(config)
+    # 加载配置
+    config = load_config(args.config)
     
+    # 设置设备
+    device = set_device(config)
+    logger.info(f"使用设备: {device}")
+    
+    # 加载分词器和模型
+    tokenizer = AutoTokenizer.from_pretrained(config['model']['pretrained_model'])
+    
+    # 数据集加载
     train_dataset = CMeIEDataset(
-        "/Users/fufu/codes/playgruond/test-modernbert/workplace/data/CMeIE_train.json",
-        tokenizer,
-        "/Users/fufu/codes/playgruond/test-modernbert/workplace/data/53_schemas.jsonl"
-    )
-    
-    training_args = TrainingArguments(
-        output_dir="./results",
-        num_train_epochs=3,
-        per_device_train_batch_size=16,
-        learning_rate=8e-5,
-        warmup_ratio=0.05,
-        weight_decay=0.01,
-        logging_dir="./logs",
-        logging_steps=10,
-        save_strategy="steps",
-        save_steps=100,
-        evaluation_strategy="steps",
-        eval_steps=100,
-        load_best_model_at_end=True,
-    )
-    
-    train_loader = DataLoader(
-        train_dataset,
-        batch_size=training_args.per_device_train_batch_size,
-        shuffle=True,
-        collate_fn=collate_fn,
-        num_workers=4,
-        pin_memory=True
+        data_file=config['data']['train_file'], 
+        tokenizer=tokenizer, 
+        schema_file=config['data']['schema_file'], 
+        max_length=config['data']['max_seq_length']
     )
     
     eval_dataset = CMeIEDataset(
-        "/Users/fufu/codes/playgruond/test-modernbert/workplace/data/CMeIE_dev.json",
-        tokenizer,
-        "/Users/fufu/codes/playgruond/test-modernbert/workplace/data/53_schemas.jsonl"
+        data_file=config['data']['eval_file'], 
+        tokenizer=tokenizer, 
+        schema_file=config['data']['schema_file'], 
+        max_length=config['data']['max_seq_length']
+    )
+    
+    # 数据加载器
+    train_loader = DataLoader(
+        train_dataset, 
+        batch_size=config['training']['batch_size'], 
+        shuffle=True, 
+        collate_fn=collate_fn,
+        num_workers=0,
+        pin_memory=False
     )
     
     eval_loader = DataLoader(
-        eval_dataset,
-        batch_size=training_args.per_device_train_batch_size,
-        shuffle=False,
+        eval_dataset, 
+        batch_size=config['training']['eval_batch_size'], 
+        shuffle=False, 
         collate_fn=collate_fn,
-        num_workers=4,
-        pin_memory=True
+        num_workers=0,
+        pin_memory=False
     )
     
-    optimizer = torch.optim.AdamW(
-        model.parameters(),
-        lr=training_args.learning_rate,
-        weight_decay=training_args.weight_decay
+    # 模型配置
+    model_config = FlexBertConfig.from_pretrained(config['model']['pretrained_model'])
+    for key in [
+        'hidden_size', 'num_hidden_layers', 'num_attention_heads', 'intermediate_size',
+        'hidden_activation', 'max_position_embeddings', 'norm_eps', 'norm_bias',
+        'global_rope_theta', 'attention_bias', 'attention_dropout',
+        'global_attn_every_n_layers', 'local_attention', 'local_rope_theta',
+        'embedding_dropout', 'mlp_bias', 'mlp_dropout', 'classifier_pooling',
+        'classifier_dropout', 'hidden_dropout_prob', 'attention_probs_dropout_prob'
+    ]:
+        if key in config['model']:
+            setattr(model_config, key, config['model'][key])
+    
+    # 初始化模型
+    model = FlexBertForRelationExtraction.from_pretrained(
+        config['model']['pretrained_model'],
+        config=model_config
     )
-    
-    num_training_steps = len(train_loader) * training_args.num_train_epochs
-    num_warmup_steps = int(num_training_steps * training_args.warmup_ratio)
-    
-    scheduler = get_linear_schedule_with_warmup(
-        optimizer,
-        num_warmup_steps=num_warmup_steps,
-        num_training_steps=num_training_steps
-    )
-    
     model = model.to(device)
-    num_epochs = int(training_args.num_train_epochs)
-    best_f1 = 0
-    max_grad_norm = 1.0  
     
+    # 优化器
+    optimizer = torch.optim.AdamW(
+        model.parameters(), 
+        lr=config['training']['learning_rate'],
+        weight_decay=config['training']['weight_decay']
+    )
+    
+    # 学习率调度器
+    total_steps = len(train_loader) * config['training']['num_train_epochs']
+    warmup_steps = int(total_steps * config['training']['warmup_ratio'])
+    scheduler = get_linear_schedule_with_warmup(
+        optimizer, 
+        num_warmup_steps=warmup_steps, 
+        num_training_steps=total_steps
+    )
+    
+    # 训练参数
+    num_epochs = config['training']['num_train_epochs']
+    max_grad_norm = config['training']['max_grad_norm']
+    
+    # 输出目录
+    output_dir = config['output']['output_dir']
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # 训练循环
     logger.info("开始训练...")
+    best_f1 = 0
     total_steps = len(train_loader) * num_epochs
     progress_bar = tqdm(total=total_steps, desc="训练进度")
     
-    for epoch in range(num_epochs):
-        model.train()
-        total_loss = 0
-        for batch_idx, batch in enumerate(train_loader):
-            input_ids = batch['input_ids'].to(device)
-            attention_mask = batch['attention_mask'].to(device)
-            bio_labels = batch['bio_labels'].to(device)
-            relations = batch['relations'].to(device) if len(batch['relations']) > 0 else None
-            entity_positions = batch['entity_positions'].to(device) if len(batch['entity_positions']) > 0 else None
+    try:
+        for epoch in range(num_epochs):
+            model.train()
+            total_loss = 0
             
-            outputs = model(
-                input_ids=input_ids,
-                attention_mask=attention_mask,
-                entity_positions=entity_positions,
-                labels=(bio_labels, None, relations)
-            )
+            try:
+                for batch_idx, batch in enumerate(train_loader):
+                    try:
+                        input_ids = batch['input_ids'].to(device)
+                        attention_mask = batch['attention_mask'].to(device)
+                        bio_labels = batch['bio_labels'].to(device)
+                        relations = batch['relations'].to(device) if len(batch['relations']) > 0 else None
+                        entity_positions = batch['entity_positions'].to(device) if len(batch['entity_positions']) > 0 else None
+                        
+                        outputs = model(
+                            input_ids=input_ids,
+                            attention_mask=attention_mask,
+                            entity_positions=entity_positions,
+                            labels=(bio_labels, None, relations)
+                        )
+                        
+                        loss = outputs[0]
+                        total_loss += loss.item()
+                        
+                        loss.backward()
+                        clip_grad_norm_(model.parameters(), max_grad_norm)
+                        optimizer.step()
+                        scheduler.step()
+                        optimizer.zero_grad()
+                        
+                        # 更新进度条
+                        progress_bar.update(1)
+                        if (batch_idx + 1) % config['training']['logging_steps'] == 0:
+                            avg_loss = total_loss / (batch_idx + 1)
+                            progress_bar.set_postfix({
+                                'epoch': f'{epoch+1}/{num_epochs}',
+                                'loss': f'{avg_loss:.4f}'
+                            })
+                    except Exception as batch_error:
+                        logger.error(f"处理批次 {batch_idx} 时出错: {batch_error}")
+                        continue
+                
+                # 每个epoch结束后的平均loss
+                avg_epoch_loss = total_loss / len(train_loader)
+                logger.info(f'Epoch {epoch+1}/{num_epochs} - 平均训练损失: {avg_epoch_loss:.4f}')
+                
+                # 评估
+                eval_metrics = evaluate(model, eval_loader, device)
+                logger.info(f'评估结果:')
+                logger.info(f'验证损失: {eval_metrics["eval_loss"]:.4f}')
+                logger.info(f'BIO标签 - 准确率: {eval_metrics["bio_precision"]:.4f}, '
+                           f'召回率: {eval_metrics["bio_recall"]:.4f}, '
+                           f'F1: {eval_metrics["bio_f1"]:.4f}')
+                logger.info(f'关系分类 - 准确率: {eval_metrics["relation_precision"]:.4f}, '
+                           f'召回率: {eval_metrics["relation_recall"]:.4f}, '
+                           f'F1: {eval_metrics["relation_f1"]:.4f}')
+                
+                # 保存最佳模型
+                if eval_metrics['bio_f1'] > best_f1:
+                    best_f1 = eval_metrics['bio_f1']
+                    model_path = os.path.join(output_dir, 'best_model.pth')
+                    torch.save(model.state_dict(), model_path)
+                    logger.info(f'保存最佳模型，F1分数: {best_f1:.4f}')
+                    
+                    # 限制保存的模型数量
+                    saved_models = sorted(
+                        [f for f in os.listdir(output_dir) if f.startswith('best_model')], 
+                        key=lambda x: os.path.getctime(os.path.join(output_dir, x))
+                    )
+                    while len(saved_models) > config['output']['save_total_limit']:
+                        os.remove(os.path.join(output_dir, saved_models.pop(0)))
             
-            loss = outputs[0]
-            total_loss += loss.item()
-            
-            loss.backward()
-            clip_grad_norm_(model.parameters(), max_grad_norm)
-            optimizer.step()
-            scheduler.step()
-            optimizer.zero_grad()
-            
-            # 更新进度条
-            progress_bar.update(1)
-            if (batch_idx + 1) % 10 == 0:  # 每10个batch显示一次当前loss
-                avg_loss = total_loss / (batch_idx + 1)
-                progress_bar.set_postfix({
-                    'epoch': f'{epoch+1}/{num_epochs}',
-                    'loss': f'{avg_loss:.4f}'
-                })
+            except RuntimeError as epoch_error:
+                logger.error(f"训练轮次 {epoch+1} 出错: {epoch_error}")
+                break
         
-        # 每个epoch结束后的平均loss
-        avg_epoch_loss = total_loss / len(train_loader)
-        logger.info(f'Epoch {epoch+1}/{num_epochs} - 平均训练损失: {avg_epoch_loss:.4f}')
-        
-        # 评估
-        eval_metrics = evaluate(model, eval_loader, device)
-        logger.info(f'评估结果:')
-        logger.info(f'验证损失: {eval_metrics["eval_loss"]:.4f}')
-        logger.info(f'BIO标签 - 准确率: {eval_metrics["bio_precision"]:.4f}, '
-                   f'召回率: {eval_metrics["bio_recall"]:.4f}, '
-                   f'F1: {eval_metrics["bio_f1"]:.4f}')
-        logger.info(f'关系分类 - 准确率: {eval_metrics["relation_precision"]:.4f}, '
-                   f'召回率: {eval_metrics["relation_recall"]:.4f}, '
-                   f'F1: {eval_metrics["relation_f1"]:.4f}')
-        
-        # 保存最佳模型
-        if eval_metrics['bio_f1'] > best_f1:
-            best_f1 = eval_metrics['bio_f1']
-            torch.save(model.state_dict(), os.path.join(training_args.output_dir, 'best_model.pth'))
-            logger.info(f'保存最佳模型，F1分数: {best_f1:.4f}')
+        progress_bar.close()
+        logger.info("训练完成！")
     
-    progress_bar.close()
-    logger.info("训练完成！")
+    except Exception as main_error:
+        logger.error(f"训练过程出现严重错误: {main_error}")
+        raise
 
 if __name__ == "__main__":
     main()
