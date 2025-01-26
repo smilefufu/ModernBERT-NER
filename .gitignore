@@ -1,0 +1,44 @@
+# Python 相关忽略文件
+__pycache__/
+*.py[cod]
+*$py.class
+
+# 虚拟环境
+venv/
+env/
+.env/
+.venv/
+
+# 日志文件
+*.log
+
+# IDE 相关文件
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 模型和数据文件
+*.pth
+*.pt
+*.pkl
+*.h5
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 临时文件
+*.tmp
+*~
+
+# 构建和分发相关
+build/
+dist/
+*.egg-info/
+
+# 训练和测试输出
+outputs/
+checkpoints/
+logs/
+wandb/
