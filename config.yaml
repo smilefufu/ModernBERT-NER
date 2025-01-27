@@ -1,34 +1,28 @@
 # 模型配置
 model:
   pretrained_model: "answerdotai/ModernBERT-large"
-  hidden_dropout_prob: 0.1
-  attention_probs_dropout_prob: 0.1
   hidden_size: 1024
+  intermediate_size: 4096
   num_hidden_layers: 24
   num_attention_heads: 16
-  intermediate_size: 4096
-  hidden_activation: "gelu"
-  max_position_embeddings: 2048  # 考虑到医疗文本长度，设置适中的长度
-  norm_eps: 1e-5
-  norm_bias: false
-  global_rope_theta: 160000.0
-  attention_bias: false
-  attention_dropout: 0.0
-  global_attn_every_n_layers: 4  # 增加到4，减少全局注意力的频率，提高效率
-  local_attention: 256  # 增加局部注意力窗口大小，提升局部上下文理解
-  local_rope_theta: 10000.0
-  embedding_dropout: 0.0
-  mlp_bias: false
-  mlp_dropout: 0.0
-  classifier_pooling: "cls"
-  classifier_dropout: 0.1  # 增加dropout以防止过拟合
+  max_position_embeddings: 8192
+  classifier_dropout: 0.1
+  num_labels: 3
+  num_relations: 53
+  entity_types: ["疾病", "症状", "检查", "手术", "药物", "其他治疗", "部位", "社会学", "流行病学", "预后", "其他"]
+  position_embedding_type: "alibi"  # 使用 ALiBi 位置编码
+  use_cache: false  # 训练时禁用缓存
+  pad_token_id: 0
+  bos_token_id: 1
+  eos_token_id: 2
+  vocab_size: 50368
 
 # 训练配置
 training:
-  batch_size: 24  # 增加批次大小，利用 ModernBERT 的内存效率
-  eval_batch_size: 32  # 评估时可以用更大的批次
-  learning_rate: 2e-5
-  weight_decay: 0.01
+  batch_size: 8
+  eval_batch_size: 8
+  learning_rate: 1.0e-5  # 降低学习率
+  weight_decay: 0.1  # 增加权重衰减
   num_train_epochs: 50
   max_grad_norm: 1.0
   warmup_ratio: 0.1
@@ -38,8 +32,8 @@ training:
 data:
   train_file: "./data/CMeIE_train.json"
   eval_file: "./data/CMeIE_dev.json"
-  schema_file: "./data/53_schema.jsonl"
-  max_seq_length: 1024  # 增加序列长度，但保持在合理范围内
+  schema_file: "./data/53_schemas.jsonl"
+  max_seq_length: 512
 
 # 设备配置
 device:

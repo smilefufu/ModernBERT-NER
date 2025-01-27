@@ -1,9 +1,8 @@
 import torch
 import json
 import yaml
-from transformers import AutoTokenizer
-from src.bert_layers.configuration_bert import FlexBertConfig
-from src.bert_layers.model_re import FlexBertForRelationExtraction
+from transformers import AutoTokenizer, ModernBertConfig
+from src.bert_layers.modern_model_re import ModernBertForRelationExtraction
 
 class RelationExtractor:
     def __init__(self, model_path, config_path="config.yaml", device='cuda'):
@@ -15,7 +14,7 @@ class RelationExtractor:
         self.tokenizer = AutoTokenizer.from_pretrained(model_path)
         
         # 使用配置初始化模型
-        model_config = FlexBertConfig.from_pretrained(model_path)
+        model_config = ModernBertConfig.from_pretrained(model_path)
         for key in [
             'hidden_size', 'num_hidden_layers', 'num_attention_heads', 'intermediate_size',
             'hidden_activation', 'max_position_embeddings', 'norm_eps', 'norm_bias',
@@ -27,7 +26,11 @@ class RelationExtractor:
             if key in self.config['model']:
                 setattr(model_config, key, self.config['model'][key])
         
-        self.model = FlexBertForRelationExtraction.from_pretrained(
+        # 设置实体类型和关系数量
+        model_config.entity_types = ["疾病", "症状", "检查", "手术", "药物", "其他治疗", "部位", "社会学", "流行病学", "预后", "其他"]
+        model_config.num_relations = 53
+        
+        self.model = ModernBertForRelationExtraction.from_pretrained(
             model_path,
             config=model_config
         )
