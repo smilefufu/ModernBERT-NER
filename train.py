@@ -210,14 +210,19 @@ class CMeIEDataset(Dataset):
             obj_token_end = None
             
             offset_mapping = encoding['offset_mapping'][0].numpy()
+            
+            # 找到最接近的token位置
             for i, (start, end) in enumerate(offset_mapping):
-                if start == subj_start:
+                # 对于 start_idx，找第一个覆盖这个位置的token
+                if start <= subj_start < end:
                     subj_token_start = i
-                if end == subj_end:
-                    subj_token_end = i + 1
-                if start == obj_start:
+                if start <= obj_start < end:
                     obj_token_start = i
-                if end == obj_end:
+                    
+                # 对于 end_idx，找最后一个覆盖这个位置的token
+                if start <= subj_end < end:
+                    subj_token_end = i + 1
+                if start <= obj_end < end:
                     obj_token_end = i + 1
             
             # 检查token位置是否有效

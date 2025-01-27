@@ -1,6 +1,6 @@
 # 模型配置
 model:
-  pretrained_model: "answerdotai/ModernBERT-large"
+  pretrained_model: "/Users/fufu/.cache/modelscope/hub/answerdotai/ModernBERT-large"
   hidden_size: 1024
   intermediate_size: 4096
   num_hidden_layers: 24
