@@ -27,11 +27,14 @@ training:
   max_grad_norm: 0.5  # 降低梯度裁剪阈值
   warmup_ratio: 0.1
   logging_steps: 10
+  
+  # 新增数据划分配置
+  eval_ratio: 0.1  # 从训练集中划分10%作为验证集
+  random_seed: 42  # 随机种子,保证每次划分的一致性
 
 # 数据配置
 data:
-  train_file: "./data/CMeIE_train.json"
-  eval_file: "./data/CMeIE_dev.json"
+  train_file: "./data/CMeIE_dev.json"
   schema_file: "./data/53_schemas.jsonl"
   max_seq_length: 2048  # 增加到 2048，考虑到内存和计算资源的平衡
 

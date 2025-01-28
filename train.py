@@ -7,6 +7,7 @@ from torch.utils.data import Dataset, DataLoader
 from transformers import AutoTokenizer, AutoConfig, get_linear_schedule_with_warmup
 from src.bert_layers.modern_model_re import ModernBertForRelationExtraction
 from tqdm import tqdm, trange
+from sklearn.model_selection import train_test_split
 
 # 设置tokenizer并行处理
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -88,8 +89,12 @@ def get_optimizer(model, config):
 class CMeIEDataset(Dataset):
     """CMeIE数据集"""
     def __init__(self, data_file, tokenizer, schema_file, max_length):
-        # 加载数据和schema
-        raw_data = load_json_or_jsonl(data_file)
+        # 支持传入文件路径或直接传入数据列表
+        if isinstance(data_file, str):
+            raw_data = load_json_or_jsonl(data_file)
+        else:
+            raw_data = data_file
+        
         self.data = [sample for sample in raw_data if self.validate_sample(sample)]
         logger.info(f"数据集初始化 - 加载了 {len(self.data)}/{len(raw_data)} 个有效样本")
         
@@ -272,6 +277,54 @@ def collate_fn(batch):
         'labels': labels,
     }
 
+def load_data(config, tokenizer):
+    """加载训练和验证数据"""
+    # 加载训练数据
+    train_file = config['data']['train_file']
+    with open(train_file, 'r', encoding='utf-8') as f:
+        train_data = json.load(f)
+    
+    # 划分训练集和验证集
+    train_data, eval_data = train_test_split(
+        train_data, 
+        test_size=config['training'].get('eval_ratio', 0.1),  # 默认10%作为验证集
+        random_state=config['training'].get('random_seed', 42)
+    )
+    
+    logger.info(f"数据划分: 训练集 {len(train_data)} 样本, 验证集 {len(eval_data)} 样本")
+    
+    # 创建数据集
+    train_dataset = CMeIEDataset(
+        data_file=train_data, 
+        tokenizer=tokenizer, 
+        schema_file=config['data']['schema_file'], 
+        max_length=config['data']['max_seq_length']
+    )
+    
+    eval_dataset = CMeIEDataset(
+        data_file=eval_data, 
+        tokenizer=tokenizer, 
+        schema_file=config['data']['schema_file'], 
+        max_length=config['data']['max_seq_length']
+    )
+    
+    # 创建数据加载器
+    train_loader = DataLoader(
+        train_dataset, 
+        batch_size=config['training']['batch_size'], 
+        shuffle=True, 
+        collate_fn=collate_fn
+    )
+    
+    eval_loader = DataLoader(
+        eval_dataset, 
+        batch_size=config['training']['eval_batch_size'], 
+        shuffle=False, 
+        collate_fn=collate_fn
+    )
+    
+    return train_loader, eval_loader
+
 def train_epoch(model, train_loader, optimizer, scheduler, device, epoch):
     """训练一个epoch"""
     model.train()
@@ -372,36 +425,8 @@ def main():
     )
     model.to(device)
     
-    # 准备数据集
-    train_dataset = CMeIEDataset(
-        config['data']['train_file'],
-        tokenizer,
-        config['data']['schema_file'],
-        config['data']['max_seq_length']
-    )
-    
-    dev_dataset = CMeIEDataset(
-        config['data']['eval_file'],
-        tokenizer,
-        config['data']['schema_file'],
-        config['data']['max_seq_length']
-    )
-    
-    train_loader = DataLoader(
-        train_dataset,
-        batch_size=config['training']['batch_size'],
-        shuffle=True,
-        collate_fn=collate_fn,
-        num_workers=4
-    )
-    
-    dev_loader = DataLoader(
-        dev_dataset,
-        batch_size=config['training']['eval_batch_size'],
-        shuffle=False,
-        collate_fn=collate_fn,
-        num_workers=4
-    )
+    # 加载数据
+    train_loader, eval_loader = load_data(config, tokenizer)
     
     # 准备优化器和学习率调度器
     optimizer = get_optimizer(model, config)
@@ -430,7 +455,7 @@ def main():
         logger.info(f'Epoch {epoch+1}/{config["training"]["num_train_epochs"]} - Train Loss: {train_loss:.4f}')
         
         # 评估
-        dev_loss = evaluate(model, dev_loader, device)
+        dev_loss = evaluate(model, eval_loader, device)
         logger.info(f'Epoch {epoch+1}/{config["training"]["num_train_epochs"]} - Dev Loss: {dev_loss:.4f}')
         
         # 保存最佳模型
