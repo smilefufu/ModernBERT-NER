@@ -1,6 +1,6 @@
 # 模型配置
 model:
-  pretrained_model: "/Users/fufu/.cache/modelscope/hub/answerdotai/ModernBERT-large"
+  model_name_or_path: "/Users/fufu/.cache/modelscope/hub/answerdotai/ModernBERT-large"
   hidden_size: 1024
   intermediate_size: 4096
   num_hidden_layers: 24
@@ -19,12 +19,12 @@ model:
 
 # 训练配置
 training:
-  batch_size: 8
-  eval_batch_size: 8
-  learning_rate: 1.0e-5  # 降低学习率
-  weight_decay: 0.1  # 增加权重衰减
-  num_train_epochs: 50
-  max_grad_norm: 1.0
+  batch_size: 2  # 减小 batch size 以适应更长的序列
+  eval_batch_size: 2
+  learning_rate: 5.0e-6  # 进一步降低学习率
+  weight_decay: 0.01  # 降低权重衰减
+  num_train_epochs: 10
+  max_grad_norm: 0.5  # 降低梯度裁剪阈值
   warmup_ratio: 0.1
   logging_steps: 10
 
@@ -33,7 +33,7 @@ data:
   train_file: "./data/CMeIE_train.json"
   eval_file: "./data/CMeIE_dev.json"
   schema_file: "./data/53_schemas.jsonl"
-  max_seq_length: 512
+  max_seq_length: 2048  # 增加到 2048，考虑到内存和计算资源的平衡
 
 # 设备配置
 device:

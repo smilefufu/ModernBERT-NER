@@ -3,15 +3,13 @@ import torch
 import yaml
 import logging
 import os
-import argparse
-from transformers import AutoTokenizer, AutoConfig
 from torch.utils.data import Dataset, DataLoader
+from transformers import AutoTokenizer, AutoConfig, get_linear_schedule_with_warmup
 from src.bert_layers.modern_model_re import ModernBertForRelationExtraction
-from transformers import get_linear_schedule_with_warmup
-from sklearn.metrics import precision_recall_fscore_support
-from torch.nn.utils import clip_grad_norm_
-from tqdm import tqdm
-import random
+from tqdm import tqdm, trange
+
+# 设置tokenizer并行处理
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 # 设置日志
 logging.basicConfig(
@@ -21,247 +19,228 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# 添加命令行参数解析
+def load_json_or_jsonl(file_path):
+    """通用的json/jsonl加载函数
+    
+    Args:
+        file_path: 文件路径
+        
+    Returns:
+        list: 加载的数据列表
+    """
+    if file_path.endswith('.jsonl'):
+        # jsonl格式，按行读取
+        data = []
+        with open(file_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                if line.strip():  # 跳过空行
+                    data.append(json.loads(line.strip()))
+        return data
+    else:
+        # json格式，直接加载
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+
 def parse_args():
-    parser = argparse.ArgumentParser(description="训练实体关系抽取模型")
+    """解析命令行参数"""
+    import argparse
+    parser = argparse.ArgumentParser()
     parser.add_argument('--config', type=str, default='config.yaml', help='配置文件路径')
     return parser.parse_args()
 
-# 加载配置
 def load_config(config_path):
+    """加载配置文件"""
     with open(config_path, 'r', encoding='utf-8') as f:
         return yaml.safe_load(f)
 
-# 设置设备
 def set_device(config):
-    if config['device']['use_cuda'] and torch.cuda.is_available():
-        return torch.device("cuda")
-    elif config['device']['use_mps'] and torch.backends.mps.is_available():
-        return torch.device("mps")
-    return torch.device("cpu")
+    """设置设备"""
+    if torch.backends.mps.is_available() and config['device']['use_mps']:
+        device = torch.device('mps')
+    elif torch.cuda.is_available() and config['device']['use_cuda']:
+        device = torch.device('cuda')
+    else:
+        device = torch.device('cpu')
+    logger.info(f'使用设备: {device}')
+    return device
+
+def get_optimizer(model, config):
+    """获取优化器"""
+    # 设置不同的学习率
+    no_decay = ['bias', 'LayerNorm.weight']
+    optimizer_grouped_parameters = [
+        {
+            'params': [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)],
+            'weight_decay': config['training']['weight_decay']
+        },
+        {
+            'params': [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)],
+            'weight_decay': 0.0
+        }
+    ]
+    
+    return torch.optim.AdamW(
+        optimizer_grouped_parameters,
+        lr=float(config['training']['learning_rate']),
+        eps=1e-8
+    )
 
 class CMeIEDataset(Dataset):
-    def __init__(self, data_file, tokenizer, schema_file, max_length=512):
-        self.data = self.load_data(data_file)
-        print(f"Loaded {len(self.data)} samples from {data_file}")  # 添加调试信息
-        self.tokenizer = tokenizer
-        self.max_length = max_length
+    """CMeIE数据集"""
+    def __init__(self, data_file, tokenizer, schema_file, max_length):
+        # 加载数据和schema
+        raw_data = load_json_or_jsonl(data_file)
+        self.data = [sample for sample in raw_data if self.validate_sample(sample)]
+        logger.info(f"数据集初始化 - 加载了 {len(self.data)}/{len(raw_data)} 个有效样本")
+        
+        # 加载schema
         self.schema = self.load_schema(schema_file)
         self.relation2id = {item: idx for idx, item in enumerate(self.schema)}
-    
+        
+        # 初始化tokenizer
+        if isinstance(tokenizer, str):
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                tokenizer,
+                model_max_length=max_length,
+                use_fast=True,
+                do_lower_case=False,
+                strip_accents=False,
+                tokenize_chinese_chars=True,
+                encoding='utf-8'
+            )
+        else:
+            self.tokenizer = tokenizer
+            
+        self.max_length = max_length
+        
+    def load_schema(self, filename):
+        """加载schema文件，返回所有predicate列表"""
+        raw_schema = load_json_or_jsonl(filename)
+        if isinstance(raw_schema, list):
+            # 如果直接是predicate列表
+            if isinstance(raw_schema[0], str):
+                return raw_schema
+            # 如果是字典列表，提取predicate字段
+            return [item['predicate'] for item in raw_schema]
+        # 如果是字典，提取predicate字段
+        return [item['predicate'] for item in raw_schema.values()]
+
     def __len__(self):
         return len(self.data)
         
-    def load_data(self, filename):
-        try:
-            with open(filename, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                valid_samples = []
-                
-                for sample in data:
-                    if not sample.get('spo_list'):
-                        continue
-                        
-                    text = sample['text']
-                    text_len = len(text)
-                    valid_spos = []
-                    
-                    for spo in sample['spo_list']:
-                        try:
-                            subj_start = int(spo['subject_start_idx'])
-                            subj_end = int(spo['subject_end_idx'])
-                            obj_start = int(spo['object_start_idx'])
-                            obj_end = int(spo['object_end_idx'])
-                            
-                            # 验证位置范围
-                            # end_idx 是实体最后一个字符的下标
-                            if not (0 <= subj_start <= subj_end < text_len and 
-                                  0 <= obj_start <= obj_end < text_len):
-                                logger.warning(f"实体位置超出范围: subject[{subj_start}:{subj_end}], object[{obj_start}:{obj_end}], text_len={text_len}")
-                                continue
-                                
-                            # 验证实体文本
-                            subject = text[subj_start:subj_end + 1]  # +1 是因为切片是左闭右开
-                            object_ = text[obj_start:obj_end + 1]    # +1 是因为切片是左闭右开
-                            
-                            if not (subject.strip() and object_.strip()):
-                                logger.warning(f"实体文本为空: subject='{subject}', object='{object_}'")
-                                continue
-                                
-                            # 标准化object_type
-                            if isinstance(spo['object_type'], dict):
-                                spo['object_type'] = spo['object_type'].get('@value', '')
-                                
-                            valid_spos.append(spo)
-                            
-                        except (KeyError, ValueError, TypeError) as e:
-                            logger.warning(f"实体位置无效: {str(e)}")
-                            continue
-                    
-                    if valid_spos:
-                        sample['spo_list'] = valid_spos
-                        valid_samples.append(sample)
-                
-                logger.info(f"加载数据: {len(valid_samples)}/{len(data)} 个有效样本")
-                return valid_samples
-                
-        except Exception as e:
-            logger.error(f"加载数据出错 {filename}: {str(e)}")
-            return []
-    
-    def load_schema(self, filename):
-        schemas = []
-        with open(filename, 'r', encoding='utf-8') as f:
-            for line in f:
-                if line.strip():
-                    schema = json.loads(line)
-                    schemas.append(f"{schema['subject_type']}_{schema['predicate']}_{schema['object_type']}")
-        return schemas
-    
-    def create_bio_labels(self, text, entities, max_length):
-        # 初始化BIO标签
-        bio_labels = ['O'] * len(text)
-        
-        for ent in entities:
-            start_idx = ent['start_idx']
-            end_idx = ent['end_idx']
-            bio_labels[start_idx] = 'B'
-            for i in range(start_idx + 1, end_idx):
-                bio_labels[i] = 'I'
-                
-        # 转换为数字标签
-        label_map = {'O': 0, 'B': 1, 'I': 2}
-        labels = [label_map[label] for label in bio_labels]
-        
-        # 填充到最大长度
-        if len(labels) < max_length:
-            labels = labels + [0] * (max_length - len(labels))
-        else:
-            labels = labels[:max_length]
+    def validate_sample(self, sample):
+        """验证样本格式"""
+        required_fields = ['text', 'spo_list']
+        if not all(field in sample for field in required_fields):
+            return False
             
-        return labels
-    
+        for spo in sample['spo_list']:
+            if not all(field in spo for field in ['subject', 'predicate', 'object']):
+                return False
+                
+        return True
+        
     def __getitem__(self, idx):
+        """获取单个样本"""
         sample = self.data[idx]
         text = sample['text']
-        text_length = len(text)
+        spo_list = sample['spo_list']
         
-        # 确保每个样本至少有一个 SPO
-        if not sample['spo_list']:
-            logger.warning(f"样本 {idx} 没有 SPO")
-            return None
-            
-        # 随机选择一个 SPO
-        spo = random.choice(sample['spo_list'])
-        
-        # 获取实体位置
-        subj_start = int(spo['subject_start_idx'])
-        subj_end = int(spo['subject_end_idx'])
-        obj_start = int(spo['object_start_idx'])
-        obj_end = int(spo['object_end_idx'])
-        
-        # 构建关系类型
-        relation_type = f"{spo['subject_type']}_{spo['predicate']}_{spo['object_type']}"
-        
-        # 对文本进行编码
+        # 编码文本
         encoding = self.tokenizer(
             text,
             max_length=self.max_length,
             padding='max_length',
             truncation=True,
-            return_tensors='pt',
-            return_offsets_mapping=True
+            return_offsets_mapping=True,  # 添加offset mapping以便定位token
+            return_tensors='pt'
         )
         
-        # 准备BIO标签，使用相同的最大长度
-        bio_labels = self.create_bio_labels(text, sample['entities'], self.max_length)
+        # 去除batch维度
+        encoding = {k: v.squeeze(0) for k, v in encoding.items()}
+        offset_mapping = encoding['offset_mapping']
         
-        # 准备关系标签
-        relations = []
-        entity_spans = []
+        # 初始化标签
+        seq_len = len(encoding['input_ids'])
+        labels = torch.zeros(seq_len, dtype=torch.long)  # 用于NER标注
+        relations = torch.zeros(4, dtype=torch.long)  # 假设每个样本最多4个关系
+        entity_spans = torch.zeros((4, 4), dtype=torch.long)  # [关系数, (start1, end1, start2, end2)]
         
-        # 记录序列实际长度（不包括padding）
-        seq_length = encoding['attention_mask'][0].sum().item()
-        logger.info(f"\n处理样本 {idx}:")
-        logger.info(f"文本长度: {len(text)}, Token长度: {seq_length}")
-        
-        for spo in sample['spo_list']:
-            # 获取实体位置的token索引
-            subj_start = spo.get('subject_start_idx')
-            subj_end = spo.get('subject_end_idx')
-            obj_start = spo.get('object_start_idx')
-            obj_end = spo.get('object_end_idx')
-            
-            # 检查原始字符位置是否有效
-            if any(x is None for x in [subj_start, subj_end, obj_start, obj_end]):
-                logger.warning(f"跳过无效的实体位置: subject[{subj_start}:{subj_end}], object[{obj_start}:{obj_end}]")
+        # 处理每个SPO
+        valid_spo_count = 0
+        for spo in spo_list[:4]:  # 最多处理4个关系
+            # 检查必要的字段
+            if not all(k in spo for k in ['subject', 'predicate', 'object', 'subject_start_idx', 'subject_end_idx', 'object_start_idx', 'object_end_idx']):
                 continue
                 
-            # 记录原始实体信息
-            logger.info(f"\n关系: {spo.get('predicate')}")
-            # if idx < 5:  # 只打印前5个样本的详细信息
-            logger.info(f"主体实体: {text[subj_start:subj_end + 1]} [{subj_start}:{subj_end + 1}]")
-            logger.info(f"客体实体: {text[obj_start:obj_end + 1]} [{obj_start}:{obj_end + 1}]")
+            # 检查索引是否在文本范围内
+            text_len = len(text)
+            if any(idx >= text_len for idx in [spo['subject_start_idx'], spo['subject_end_idx'], spo['object_start_idx'], spo['object_end_idx']]):
+                continue
             
-            # 将字符级别的位置转换为token级别的位置
-            subj_token_start = None
-            subj_token_end = None
-            obj_token_start = None
-            obj_token_end = None
+            # 找到subject的token范围
+            subj_start_token = None
+            subj_end_token = None
+            obj_start_token = None
+            obj_end_token = None
             
-            offset_mapping = encoding['offset_mapping'][0].numpy()
-            
-            # 找到最接近的token位置
-            for i, (start, end) in enumerate(offset_mapping):
-                # 对于 start_idx，找第一个覆盖这个位置的token
-                if start <= subj_start < end:
-                    subj_token_start = i
-                if start <= obj_start < end:
-                    obj_token_start = i
+            # 遍历offset mapping找到对应的token位置
+            for token_idx, (char_start, char_end) in enumerate(offset_mapping):
+                if char_start == char_end:  # 跳过特殊token
+                    continue
+                # 主体
+                if char_start <= spo['subject_start_idx'] <= char_end:
+                    subj_start_token = token_idx
+                if char_start <= spo['subject_end_idx'] <= char_end:
+                    subj_end_token = token_idx
                     
-                # 对于 end_idx，找最后一个覆盖这个位置的token
-                if start <= subj_end < end:
-                    subj_token_end = i + 1
-                if start <= obj_end < end:
-                    obj_token_end = i + 1
+                # 客体
+                if char_start <= spo['object_start_idx'] <= char_end:
+                    obj_start_token = token_idx
+                if char_start <= spo['object_end_idx'] <= char_end:
+                    obj_end_token = token_idx
             
-            # 检查token位置是否有效
-            if any(x is None for x in [subj_token_start, subj_token_end, obj_token_start, obj_token_end]):
-                logger.warning(f"无法找到对应的token位置: subject[{subj_token_start}:{subj_token_end}], object[{obj_token_start}:{obj_token_end}]")
-                continue
+            # 如果找到了所有位置且在有效范围内
+            if all(x is not None for x in [subj_start_token, subj_end_token, obj_start_token, obj_end_token]):
+                # 确保所有token索引都在序列长度范围内
+                if max(subj_start_token, subj_end_token, obj_start_token, obj_end_token) >= seq_len:
+                    continue
                 
-            # 检查token位置是否在序列长度范围内
-            if any(x >= seq_length for x in [subj_token_start, subj_token_end, obj_token_start, obj_token_end]):
-                logger.warning(f"token位置超出序列长度 {seq_length}: subject[{subj_token_start}:{subj_token_end}], object[{obj_token_start}:{obj_token_end}]")
-                continue
-            
-            # 记录最终的token位置
-            logger.info(f"Token位置: subject[{subj_token_start}:{subj_token_end}], object[{obj_token_start}:{obj_token_end}]")
-            
-            entity_spans.append([subj_token_start, subj_token_end, obj_token_start, obj_token_end])
-            relation_type = f"{spo['subject_type']}_{spo['predicate']}_{spo['object_type']}"
-            relations.append(self.relation2id[relation_type])
-        
-        # 如果没有有效的关系，添加一个空的关系和位置
-        if not relations:
-            logger.info("该样本没有有效的关系，使用空标记")
-            relations = [0]  # 使用0作为空关系的标记
-            entity_spans = [[0, 0, 0, 0]]  # 使用0作为空位置的标记
+                # 设置spans和relation
+                entity_spans[valid_spo_count] = torch.tensor([
+                    subj_start_token, subj_end_token,
+                    obj_start_token, obj_end_token
+                ])
+                relations[valid_spo_count] = self.relation2id[spo['predicate']]
+                
+                # 设置NER标签
+                labels[subj_start_token:subj_end_token+1] = 1  # 主体
+                labels[obj_start_token:obj_end_token+1] = 2  # 客体
+                
+                valid_spo_count += 1
+                if valid_spo_count >= 4:
+                    break
         
         return {
-            'input_ids': encoding['input_ids'].squeeze(),
-            'attention_mask': encoding['attention_mask'].squeeze(),
-            'bio_labels': torch.tensor(bio_labels),
-            'relations': torch.tensor(relations),
-            'entity_spans': torch.tensor(entity_spans),
-            'text': text,
+            'input_ids': encoding['input_ids'],
+            'attention_mask': encoding['attention_mask'],
+            'labels': labels,
+            'relations': relations,
+            'entity_spans': entity_spans,
         }
 
 def collate_fn(batch):
+    """处理batch数据"""
+    # 过滤掉 None 值
+    batch = [item for item in batch if item is not None]
+    
+    # 如果整个 batch 都是 None，返回 None
+    if not batch:
+        return None
+        
     # 基本输入
     input_ids = torch.stack([item['input_ids'] for item in batch])
     attention_mask = torch.stack([item['attention_mask'] for item in batch])
-    bio_labels = torch.stack([item['bio_labels'] for item in batch])
     
     # 处理实体位置和关系
     max_relations = max(len(item['relations']) for item in batch)
@@ -269,371 +248,212 @@ def collate_fn(batch):
     
     # 初始化张量
     relations = torch.zeros((batch_size, max_relations), dtype=torch.long)
-    entity_spans = torch.zeros((batch_size, max_relations, 4), dtype=torch.long)  # 改名为 entity_spans
+    entity_spans = torch.zeros((batch_size, max_relations, 4), dtype=torch.long)
+    labels = torch.zeros((batch_size, input_ids.shape[1]), dtype=torch.long)
     
     # 填充数据
     for i, item in enumerate(batch):
         if len(item['relations']) > 0:
+            # 处理relations
             relations[i, :len(item['relations'])] = item['relations']
-            entity_spans[i, :len(item['entity_spans'])] = item['entity_spans']  # 改名为 entity_spans
+            
+            # 处理entity_spans
+            spans = item['entity_spans']
+            entity_spans[i, :len(item['relations'])] = spans
+            
+            # 处理labels
+            labels[i] = item['labels']
     
     return {
         'input_ids': input_ids,
         'attention_mask': attention_mask,
-        'labels': bio_labels,
         'relations': relations,
-        'entity_spans': entity_spans,  # 改名为 entity_spans
+        'entity_spans': entity_spans,
+        'labels': labels,
     }
 
 def train_epoch(model, train_loader, optimizer, scheduler, device, epoch):
+    """训练一个epoch"""
     model.train()
     total_loss = 0
-    num_batches = len(train_loader)
     
-    for batch_idx, batch in enumerate(train_loader):
-        try:
-            # 详细记录实体范围的原始值
-            logger.info(f"\nBatch {batch_idx} - 详细数据:")
-            for i in range(len(batch['entity_spans'])):
-                # 记录当前样本的序列长度
-                seq_len = batch['attention_mask'][i].sum().item()
-                logger.info(f"\n样本 {i} - 序列长度: {seq_len}")
-                logger.info("实体范围:")
-                for j, spans in enumerate(batch['entity_spans'][i]):
-                    if not (spans == 0).all():
-                        logger.info(f"  关系 {j}: {spans.tolist()} - 标签: {batch['relations'][i][j].item()}")
-            
-            # 记录基本形状信息
-            logger.info(f"\nBatch {batch_idx} - 输入形状:")
-            logger.info(f"input_ids shape: {batch['input_ids'].shape}")
-            logger.info(f"attention_mask shape: {batch['attention_mask'].shape}")
-            logger.info(f"labels shape: {batch['labels'].shape}")
-            logger.info(f"relations shape: {batch['relations'].shape}")
-            logger.info(f"entity_spans shape: {batch['entity_spans'].shape}")
-            
-            # 将数据移到设备
-            input_ids = batch['input_ids'].to(device)
-            attention_mask = batch['attention_mask'].to(device)
-            labels = batch['labels'].to(device)
-            relations = batch['relations'].to(device)
-            entity_spans = batch['entity_spans'].to(device)
-            
-            # 清除梯度
-            optimizer.zero_grad()
-            
-            # 前向传播
-            outputs = model(
-                input_ids=input_ids,
-                attention_mask=attention_mask,
-                labels=labels,
-                relations=relations,
-                entity_spans=entity_spans,
-            )
-            
-            loss = outputs['loss'] if isinstance(outputs, dict) else outputs[0]
-            logger.info(f"Batch {batch_idx} - Loss: {loss.item()}")
-            
-            # 反向传播
-            loss.backward()
-            
-            # 梯度裁剪
-            clip_grad_norm_(model.parameters(), max_norm=1.0)
-            
-            # 更新参数
-            optimizer.step()
-            scheduler.step()
-            
-            total_loss += loss.item()
-            
-            if batch_idx % 10 == 0:
-                logger.info(f"Epoch {epoch} - Batch {batch_idx}/{num_batches} - Loss: {loss.item():.4f}")
-                
-        except Exception as e:
-            logger.error(f"处理批次 {batch_idx} 时出错: {str(e)}")
-            logger.error(f"错误详情:", exc_info=True)
-            raise e
-    
-    return total_loss / num_batches
-
-def evaluate(model, data_loader, device):
-    model.eval()
-    all_bio_preds = []
-    all_bio_labels = []
-    all_relation_preds = []
-    all_relation_labels = []
-    total_eval_loss = 0
-    
-    with torch.no_grad():
-        for batch_idx, batch in enumerate(data_loader):
-            try:
-                # 记录每个批次的张量形状
-                logger.info(f"Eval Batch {batch_idx} - 输入形状:")
-                logger.info(f"input_ids shape: {batch['input_ids'].shape}")
-                logger.info(f"attention_mask shape: {batch['attention_mask'].shape}")
-                logger.info(f"labels shape: {batch['labels'].shape}")
-                logger.info(f"relations shape: {batch['relations'].shape}")
-                logger.info(f"entity_spans shape: {batch['entity_spans'].shape}")
-                
-                # 将数据移到设备
-                input_ids = batch['input_ids'].to(device)
-                attention_mask = batch['attention_mask'].to(device)
-                labels = batch['labels'].to(device)
-                relations = batch['relations'].to(device)
-                entity_spans = batch['entity_spans'].to(device)
-                
-                # 前向传播
-                outputs = model(
-                    input_ids=input_ids,
-                    attention_mask=attention_mask,
-                    labels=labels,
-                    relations=relations,
-                    entity_spans=entity_spans,
-                )
-                
-                loss = outputs['loss'] if isinstance(outputs, dict) else outputs[0]
-                ner_logits = outputs['ner_logits'] if isinstance(outputs, dict) else outputs[1]
-                relation_logits = outputs['relation_logits'] if isinstance(outputs, dict) else outputs[2]
-                
-                # 计算预测
-                ner_preds = torch.argmax(ner_logits, dim=-1)
-                
-                # 收集预测和标签
-                active_mask = attention_mask.view(-1) == 1
-                all_bio_preds.extend(ner_preds.view(-1)[active_mask].cpu().numpy())
-                all_bio_labels.extend(labels.view(-1)[active_mask].cpu().numpy())
-                
-                # 计算关系预测
-                for i in range(len(relation_logits)):
-                    if len(relation_logits[i]) > 0:
-                        rel_preds = torch.argmax(relation_logits[i], dim=-1)
-                        all_relation_preds.extend(rel_preds.cpu().numpy())
-                        all_relation_labels.extend(relations[i][:len(rel_preds)].cpu().numpy())
-                
-                total_eval_loss += loss.item()
-                
-                logger.info(f"Eval Batch {batch_idx} - Loss: {loss.item()}")
-                
-            except Exception as e:
-                logger.error(f"评估批次 {batch_idx} 时出错: {str(e)}")
-                logger.error(f"错误详情:", exc_info=True)
-                raise e
-    
-    # 计算指标
-    bio_metrics = precision_recall_fscore_support(
-        all_bio_labels, all_bio_preds, average='macro'
+    # 添加进度条
+    train_iterator = tqdm(
+        train_loader,
+        desc=f"训练 Epoch {epoch}",
+        total=len(train_loader),
+        ncols=100
     )
     
-    relation_metrics = (0, 0, 0) if not all_relation_labels else \
-        precision_recall_fscore_support(
-            all_relation_labels, all_relation_preds, average='macro'
-        )
+    for batch_idx, batch in enumerate(train_iterator):
+        if batch is None:
+            continue
+            
+        # 将数据移动到设备上
+        batch = {k: v.to(device) for k, v in batch.items()}
+        
+        # 前向传播
+        outputs = model(**batch)
+        loss = outputs['loss']
+        
+        if loss is None:
+            continue
+        
+        # 反向传播
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        scheduler.step()
+        
+        total_loss += loss.item()
+        
+        # 更新进度条
+        train_iterator.set_postfix({
+            'loss': f'{loss.item():.4f}',
+            'lr': f'{scheduler.get_last_lr()[0]:.2e}'
+        })
     
-    return {
-        'eval_loss': total_eval_loss / len(data_loader),
-        'bio_precision': bio_metrics[0],
-        'bio_recall': bio_metrics[1],
-        'bio_f1': bio_metrics[2],
-        'relation_precision': relation_metrics[0],
-        'relation_recall': relation_metrics[1],
-        'relation_f1': relation_metrics[2]
-    }
+    if len(train_loader) == 0:
+        raise RuntimeError("没有有效的batch进行训练！")
+        
+    return total_loss / len(train_loader)
+
+def evaluate(model, data_loader, device):
+    """评估模型"""
+    model.eval()
+    total_loss = 0
+    
+    with torch.no_grad():
+        for batch in data_loader:
+            if batch is None:
+                continue
+                
+            # 将数据移动到设备上
+            batch = {k: v.to(device) for k, v in batch.items()}
+            
+            # 前向传播
+            outputs = model(**batch)
+            loss = outputs['loss']
+            
+            total_loss += loss.item()
+    
+    return total_loss / len(data_loader)
 
 def main():
-    # 解析命令行参数
+    """主函数"""
+    # 解析参数
     args = parse_args()
-    
-    # 加载配置
     config = load_config(args.config)
     
     # 设置设备
     device = set_device(config)
-    logger.info(f"使用设备: {device}")
     
-    # 加载分词器和模型配置
-    tokenizer = AutoTokenizer.from_pretrained(config['model']['pretrained_model'])
+    # 设置tokenizer
+    tokenizer = AutoTokenizer.from_pretrained(
+        config['model']['model_name_or_path'],
+        model_max_length=config['data']['max_seq_length'],
+        use_fast=True,
+        do_lower_case=False,
+        strip_accents=False,
+        tokenize_chinese_chars=True,
+        encoding='utf-8'
+    )
+    
+    # 加载模型
     model_config = AutoConfig.from_pretrained(
-        config['model']['pretrained_model'],
-        num_labels=3,  # BIO标注
-        num_relations=53,  # 关系数量
-        trust_remote_code=True,
+        config['model']['model_name_or_path'],
+        num_labels=config['model']['num_labels'],
+        num_relations=config['model']['num_relations'],
+        entity_types=config['model']['entity_types']
     )
-    
-    # 初始化模型
     model = ModernBertForRelationExtraction.from_pretrained(
-        config['model']['pretrained_model'],
-        config=model_config,
-        trust_remote_code=True,
-        ignore_mismatched_sizes=True,
+        config['model']['model_name_or_path'],
+        config=model_config
     )
+    model.to(device)
     
-    model = model.to(device)
-    
-    # 数据集加载
+    # 准备数据集
     train_dataset = CMeIEDataset(
-        data_file=config['data']['train_file'], 
-        tokenizer=tokenizer, 
-        schema_file=config['data']['schema_file'], 
-        max_length=config['data']['max_seq_length']
+        config['data']['train_file'],
+        tokenizer,
+        config['data']['schema_file'],
+        config['data']['max_seq_length']
     )
     
-    eval_dataset = CMeIEDataset(
-        data_file=config['data']['eval_file'], 
-        tokenizer=tokenizer, 
-        schema_file=config['data']['schema_file'], 
-        max_length=config['data']['max_seq_length']
+    dev_dataset = CMeIEDataset(
+        config['data']['eval_file'],
+        tokenizer,
+        config['data']['schema_file'],
+        config['data']['max_seq_length']
     )
     
-    # 数据加载器
     train_loader = DataLoader(
-        train_dataset, 
-        batch_size=config['training']['batch_size'], 
-        shuffle=True, 
+        train_dataset,
+        batch_size=config['training']['batch_size'],
+        shuffle=True,
         collate_fn=collate_fn,
-        num_workers=0,
-        pin_memory=False
+        num_workers=4
     )
     
-    eval_loader = DataLoader(
-        eval_dataset, 
-        batch_size=config['training']['eval_batch_size'], 
-        shuffle=False, 
+    dev_loader = DataLoader(
+        dev_dataset,
+        batch_size=config['training']['eval_batch_size'],
+        shuffle=False,
         collate_fn=collate_fn,
-        num_workers=0,
-        pin_memory=False
+        num_workers=4
     )
     
-    # 优化器
-    optimizer = torch.optim.AdamW(
-        model.parameters(), 
-        lr=config['training']['learning_rate'],
-        weight_decay=config['training']['weight_decay']
-    )
+    # 准备优化器和学习率调度器
+    optimizer = get_optimizer(model, config)
     
-    # 学习率调度器
     total_steps = len(train_loader) * config['training']['num_train_epochs']
     warmup_steps = int(total_steps * config['training']['warmup_ratio'])
+    
     scheduler = get_linear_schedule_with_warmup(
-        optimizer, 
-        num_warmup_steps=warmup_steps, 
+        optimizer,
+        num_warmup_steps=warmup_steps,
         num_training_steps=total_steps
     )
     
-    # 训练参数
-    num_epochs = config['training']['num_train_epochs']
-    max_grad_norm = config['training']['max_grad_norm']
+    # 开始训练
+    logger.info("开始训练...")
+    best_loss = float('inf')
     
-    # 输出目录
-    output_dir = config['output']['output_dir']
-    os.makedirs(output_dir, exist_ok=True)
+    # 创建输出目录
+    os.makedirs(config['output']['output_dir'], exist_ok=True)
     
     # 训练循环
-    logger.info("开始训练...")
-    best_f1 = 0
-    total_steps = len(train_loader) * num_epochs
-    progress_bar = tqdm(total=total_steps, desc="训练进度")
-    
-    try:
-        for epoch in range(num_epochs):
-            model.train()
-            total_loss = 0
-            
-            try:
-                for batch_idx, batch in enumerate(train_loader):
-                    try:
-                        # 记录每个批次的张量形状
-                        logger.info(f"Batch {batch_idx} - 输入形状:")
-                        logger.info(f"input_ids shape: {batch['input_ids'].shape}")
-                        logger.info(f"attention_mask shape: {batch['attention_mask'].shape}")
-                        logger.info(f"labels shape: {batch['labels'].shape}")
-                        logger.info(f"relations shape: {batch['relations'].shape}")
-                        logger.info(f"entity_spans shape: {batch['entity_spans'].shape}")
-                        
-                        # 将数据移到设备
-                        input_ids = batch['input_ids'].to(device)
-                        attention_mask = batch['attention_mask'].to(device)
-                        labels = batch['labels'].to(device)
-                        relations = batch['relations'].to(device)
-                        entity_spans = batch['entity_spans'].to(device)
-                        
-                        # 清除梯度
-                        optimizer.zero_grad()
-                        
-                        # 前向传播
-                        outputs = model(
-                            input_ids=input_ids,
-                            attention_mask=attention_mask,
-                            labels=labels,
-                            relations=relations,
-                            entity_spans=entity_spans,
-                        )
-                        
-                        loss = outputs['loss'] if isinstance(outputs, dict) else outputs[0]
-                        logger.info(f"Batch {batch_idx} - Loss: {loss.item()}")
-                        
-                        # 反向传播
-                        loss.backward()
-                        
-                        # 梯度裁剪
-                        clip_grad_norm_(model.parameters(), max_grad_norm)
-                        
-                        # 更新参数
-                        optimizer.step()
-                        scheduler.step()
-                        
-                        total_loss += loss.item()
-                        
-                        # 更新进度条
-                        progress_bar.update(1)
-                        if (batch_idx + 1) % config['training']['logging_steps'] == 0:
-                            avg_loss = total_loss / (batch_idx + 1)
-                            progress_bar.set_postfix({
-                                'epoch': f'{epoch+1}/{num_epochs}',
-                                'loss': f'{avg_loss:.4f}'
-                            })
-                    except Exception as batch_error:
-                        logger.error(f"处理批次 {batch_idx} 时出错: {batch_error}")
-                        continue
-                
-                # 每个epoch结束后的平均loss
-                avg_epoch_loss = total_loss / len(train_loader)
-                logger.info(f'Epoch {epoch+1}/{num_epochs} - 平均训练损失: {avg_epoch_loss:.4f}')
-                
-                # 评估
-                eval_metrics = evaluate(model, eval_loader, device)
-                logger.info(f'评估结果:')
-                logger.info(f'验证损失: {eval_metrics["eval_loss"]:.4f}')
-                logger.info(f'BIO标签 - 准确率: {eval_metrics["bio_precision"]:.4f}, '
-                           f'召回率: {eval_metrics["bio_recall"]:.4f}, '
-                           f'F1: {eval_metrics["bio_f1"]:.4f}')
-                logger.info(f'关系分类 - 准确率: {eval_metrics["relation_precision"]:.4f}, '
-                           f'召回率: {eval_metrics["relation_recall"]:.4f}, '
-                           f'F1: {eval_metrics["relation_f1"]:.4f}')
-                
-                # 保存最佳模型
-                if eval_metrics['bio_f1'] > best_f1:
-                    best_f1 = eval_metrics['bio_f1']
-                    model_path = os.path.join(output_dir, 'best_model.pth')
-                    torch.save(model.state_dict(), model_path)
-                    logger.info(f'保存最佳模型，F1分数: {best_f1:.4f}')
-                    
-                    # 限制保存的模型数量
-                    saved_models = sorted(
-                        [f for f in os.listdir(output_dir) if f.startswith('best_model')], 
-                        key=lambda x: os.path.getctime(os.path.join(output_dir, x))
-                    )
-                    while len(saved_models) > config['output']['save_total_limit']:
-                        os.remove(os.path.join(output_dir, saved_models.pop(0)))
-            
-            except RuntimeError as epoch_error:
-                logger.error(f"训练轮次 {epoch+1} 出错: {epoch_error}")
-                break
+    epochs = trange(config['training']['num_train_epochs'], desc="训练进度")
+    for epoch in epochs:
+        # 训练
+        train_loss = train_epoch(model, train_loader, optimizer, scheduler, device, epoch)
+        logger.info(f'Epoch {epoch+1}/{config["training"]["num_train_epochs"]} - Train Loss: {train_loss:.4f}')
         
-        progress_bar.close()
-        logger.info("训练完成！")
-    
-    except Exception as main_error:
-        logger.error(f"训练过程出现严重错误: {main_error}")
-        raise
+        # 评估
+        dev_loss = evaluate(model, dev_loader, device)
+        logger.info(f'Epoch {epoch+1}/{config["training"]["num_train_epochs"]} - Dev Loss: {dev_loss:.4f}')
+        
+        # 保存最佳模型
+        if dev_loss < best_loss:
+            best_loss = dev_loss
+            # 保存模型和tokenizer
+            model_path = os.path.join(config['output']['output_dir'], 'best_model')
+            model.save_pretrained(model_path)
+            tokenizer.save_pretrained(model_path)
+            logger.info(f'保存最佳模型到 {model_path}')
+            
+            # 限制保存的模型数量
+            saved_models = sorted(
+                [d for d in os.listdir(config['output']['output_dir']) if os.path.isdir(os.path.join(config['output']['output_dir'], d))],
+                key=lambda x: os.path.getctime(os.path.join(config['output']['output_dir'], x))
+            )
+            while len(saved_models) > config['output']['save_total_limit']:
+                oldest_model = saved_models.pop(0)
+                oldest_path = os.path.join(config['output']['output_dir'], oldest_model)
+                if os.path.exists(oldest_path):
+                    import shutil
+                    shutil.rmtree(oldest_path)
+                    logger.info(f'删除旧模型: {oldest_path}')
 
 if __name__ == "__main__":
     main()
