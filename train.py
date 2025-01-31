@@ -756,49 +756,52 @@ def evaluate(model, data_loader, device, config):
             
             # 记录第一个batch的输出键和形状
             if batch_idx == 0:
-                logger.info(f"模型输出包含以下键: {list(outputs.keys())}")
-                for k, v in outputs.items():
-                    if isinstance(v, torch.Tensor):
-                        logger.info(f"输出 {k} 的形状: {v.shape}")
+                logger.info("模型输出包含以下属性: loss, ner_logits, relation_logits, entity_type_logits, hidden_states, attentions")
+                if hasattr(outputs, 'ner_logits'):
+                    logger.info(f"输出 ner_logits 的形状: {outputs.ner_logits.shape}")
+                if hasattr(outputs, 'relation_logits'):
+                    logger.info(f"输出 relation_logits 的形状: {outputs.relation_logits.shape}")
                 logger.info(f"输入batch包含以下键: {list(batch.keys())}")
                 for k, v in batch.items():
                     if isinstance(v, torch.Tensor):
                         logger.info(f"输入 {k} 的形状: {v.shape}")
             
             # 收集NER预测和标签
-            ner_logits = outputs.get('ner_logits')
-            if ner_logits is not None and 'labels' in batch:
-                ner_preds = ner_logits.argmax(dim=-1)
-                labels = batch['labels']
-                
-                # 统计标签分布
-                for i in range(config['model']['num_labels']):
-                    count = (labels == i).sum().item()
-                    label_counts[i] = label_counts.get(i, 0) + count
-                
-                # 确保维度匹配
-                if len(ner_preds.shape) == len(labels.shape):
-                    all_ner_preds.append(ner_preds.cpu().numpy())
-                    all_ner_labels.append(labels.cpu().numpy())
-                    if batch_idx == 0:
-                        logger.info(f"NER预测形状: {ner_preds.shape}")
-                        logger.info(f"NER标签形状: {labels.shape}")
-                        logger.info(f"NER预测值范围: [{ner_preds.min().item()}, {ner_preds.max().item()}]")
-                        logger.info(f"NER标签值范围: [{labels.min().item()}, {labels.max().item()}]")
+            if hasattr(outputs, 'ner_logits'):
+                ner_logits = outputs.ner_logits
+                if 'labels' in batch:
+                    ner_preds = ner_logits.argmax(dim=-1)
+                    labels = batch['labels']
+                    
+                    # 统计标签分布
+                    for i in range(config['model']['num_labels']):
+                        count = (labels == i).sum().item()
+                        label_counts[i] = label_counts.get(i, 0) + count
+                    
+                    # 确保维度匹配
+                    if len(ner_preds.shape) == len(labels.shape):
+                        all_ner_preds.append(ner_preds.cpu().numpy())
+                        all_ner_labels.append(labels.cpu().numpy())
+                        if batch_idx == 0:
+                            logger.info(f"NER预测形状: {ner_preds.shape}")
+                            logger.info(f"NER标签形状: {labels.shape}")
+                            logger.info(f"NER预测值范围: [{ner_preds.min().item()}, {ner_preds.max().item()}]")
+                            logger.info(f"NER标签值范围: [{labels.min().item()}, {labels.max().item()}]")
             
             # 收集RE预测和标签
-            re_logits = outputs.get('relation_logits')  # 使用relation_logits而不是re_logits
-            if re_logits is not None and 'relations' in batch:
-                re_preds = re_logits.argmax(dim=-1)
-                # 确保维度匹配
-                if len(re_preds.shape) == len(batch['relations'].shape):
-                    all_re_preds.append(re_preds.cpu().numpy())
-                    all_re_labels.append(batch['relations'].cpu().numpy())
-                    if batch_idx == 0:
-                        logger.info(f"RE预测形状: {re_preds.shape}")
-                        logger.info(f"RE标签形状: {batch['relations'].shape}")
+            if hasattr(outputs, 'relation_logits'):
+                re_logits = outputs.relation_logits
+                if 'relations' in batch:
+                    re_preds = re_logits.argmax(dim=-1)
+                    # 确保维度匹配
+                    if len(re_preds.shape) == len(batch['relations'].shape):
+                        all_re_preds.append(re_preds.cpu().numpy())
+                        all_re_labels.append(batch['relations'].cpu().numpy())
+                        if batch_idx == 0:
+                            logger.info(f"RE预测形状: {re_preds.shape}")
+                            logger.info(f"RE标签形状: {batch['relations'].shape}")
             elif batch_idx == 0:
-                if re_logits is None:
+                if not hasattr(outputs, 'relation_logits'):
                     logger.info("模型没有输出relation_logits")
                 if 'relations' not in batch:
                     logger.info("输入batch中没有relations")
