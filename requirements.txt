@@ -1,7 +1,9 @@
 einops==0.8.0
 torch
-mosaicml[nlp,wandb]>=0.22.0,<0.23
-mosaicml-streaming==0.7.6
+mosaicml[nlp,wandb]
+mosaicml-streaming
 omegaconf==2.3.0
 transformers>=4.48.0
 pyyaml
+deepspeed>=0.16.3
+scikit-learn>=1.5.1

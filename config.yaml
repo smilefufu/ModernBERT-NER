@@ -1,42 +1,39 @@
 # 模型配置
 model:
   model_name_or_path: "/Users/fufu/.cache/modelscope/hub/answerdotai/ModernBERT-large"
-  hidden_size: 1024
-  intermediate_size: 4096
-  num_hidden_layers: 24
-  num_attention_heads: 16
-  max_position_embeddings: 8192
-  classifier_dropout: 0.1
   num_labels: 3
   num_relations: 53
   entity_types: ["疾病", "症状", "检查", "手术", "药物", "其他治疗", "部位", "社会学", "流行病学", "预后", "其他"]
-  position_embedding_type: "alibi"  # 使用 ALiBi 位置编码
-  use_cache: false  # 训练时禁用缓存
-  pad_token_id: 0
-  bos_token_id: 1
-  eos_token_id: 2
-  vocab_size: 50368
+  use_cache: false
 
 # 训练配置
 training:
-  batch_size: 2  # 减小 batch size 以适应更长的序列
+  # 批次大小
+  batch_size: 2
   eval_batch_size: 2
-  learning_rate: 5.0e-6  # 进一步降低学习率
-  weight_decay: 0.01  # 降低权重衰减
-  num_train_epochs: 10
-  max_grad_norm: 0.5  # 降低梯度裁剪阈值
-  warmup_ratio: 0.1
-  logging_steps: 10
   
-  # 新增数据划分配置
-  eval_ratio: 0.1  # 从训练集中划分10%作为验证集
-  random_seed: 42  # 随机种子,保证每次划分的一致性
+  # 优化器参数
+  weight_decay: 0.01    # 权重衰减系数
+  max_grad_norm: 10.0   # 梯度裁剪阈值
+  
+  # 学习率调度
+  learning_rate: 5.0e-5  # 调整为建议的基准学习率
+  warmup_ratio: 0.1     # 预热比例，10%步数用于预热
+  
+  # 训练控制
+  num_train_epochs: 50
+  logging_steps: 10
+  use_weighted_loss: true
+  eval_ratio: 0.1
+  random_seed: 42
+  freeze_backbone: false
+  gradient_accumulation_steps: 1
 
 # 数据配置
 data:
   train_file: "./data/CMeIE_dev.json"
   schema_file: "./data/53_schemas.jsonl"
-  max_seq_length: 2048  # 增加到 2048，考虑到内存和计算资源的平衡
+  max_seq_length: 1024
 
 # 设备配置
 device:
@@ -46,5 +43,23 @@ device:
 # 输出配置
 output:
   output_dir: "./outputs"
+  save_checkpoint_epochs: 5
   save_total_limit: 3
-  load_best_model_at_end: true
+  save_strategy: "f1"
+  early_stopping: 
+    patience: 5
+    min_delta: 0.001
+    monitor: "f1"
+
+# 评估配置
+evaluation:
+  metrics: 
+    - precision
+    - recall
+    - f1
+    - confusion_matrix
+  eval_steps: 100
+  logging:
+    log_predictions: true
+    max_wrong_samples: 100
+    confusion_matrix: true
