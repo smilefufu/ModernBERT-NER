@@ -7,3 +7,4 @@ transformers>=4.48.0
 pyyaml
 deepspeed>=0.16.3
 scikit-learn>=1.5.1
+safetensors>=0.4.0

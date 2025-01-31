@@ -10,6 +10,7 @@ from tqdm import tqdm, trange
 from utils.metrics import calculate_ner_metrics, calculate_re_metrics, format_metrics
 from data.cmeie import CMeIEDataset, collate_fn
 import math
+import safetensors.torch
 
 # 配置日志
 debug_logger = logging.getLogger('debug')
@@ -462,17 +463,17 @@ def initialize_training(config, device):
     for file in os.listdir(model_path):
         debug_logger.info(f"  - {file}")
     
-    # 确保使用 pytorch_model.bin
-    pytorch_model_path = os.path.join(model_path, "pytorch_model.bin")
-    if not os.path.exists(pytorch_model_path):
-        debug_logger.error(f"找不到 pytorch_model.bin: {pytorch_model_path}")
-        raise FileNotFoundError(f"找不到 pytorch_model.bin: {pytorch_model_path}")
+    # 加载 safetensors 格式的模型文件
+    safetensors_path = os.path.join(model_path, "model.safetensors")
+    if not os.path.exists(safetensors_path):
+        debug_logger.error(f"找不到 model.safetensors: {safetensors_path}")
+        raise FileNotFoundError(f"找不到 model.safetensors: {safetensors_path}")
     
     # 从预训练模型初始化
     debug_logger.info("开始加载预训练模型权重")
     try:
-        # 先加载预训练权重
-        state_dict = torch.load(pytorch_model_path)
+        # 加载预训练权重
+        state_dict = safetensors.torch.load_file(safetensors_path)
         debug_logger.info(f"成功加载权重文件，包含以下键:")
         for key in state_dict.keys():
             debug_logger.info(f"  - {key}")
@@ -923,18 +924,19 @@ def main():
         # 保存最佳模型（基于F1）
         if current_f1 > best_f1:
             best_f1 = current_f1
-            model_path = os.path.join(
-                config['output']['output_dir'],
-                f'model_epoch_{epoch+1}_f1_{best_f1:.4f}'
-            )
+            output_dir = os.path.join(config['output']['output_dir'], f"model_epoch_{epoch+1}_f1_{best_f1:.4f}")
+            os.makedirs(output_dir, exist_ok=True)
             
-            if hasattr(model, 'module') and hasattr(model.module, 'save_pretrained'):
-                model.module.save_pretrained(model_path)
-            else:
-                model.save_pretrained(model_path)
+            # 保存模型配置
+            model.config.save_pretrained(output_dir)
             
-            tokenizer.save_pretrained(model_path)
-            logger.info(f'保存最佳模型到 {model_path}')
+            # 保存模型权重
+            state_dict = model.state_dict()
+            safetensors.torch.save_file(state_dict, os.path.join(output_dir, "model.safetensors"))
+            
+            # 保存分词器
+            tokenizer.save_pretrained(output_dir)
+            logger.info(f"保存最佳模型到: {output_dir}")
         
         # 定期保存检查点
         if (epoch + 1) % config['output'].get('save_checkpoint_epochs', 5) == 0:
@@ -942,14 +944,18 @@ def main():
                 config['output']['output_dir'],
                 f'checkpoint_epoch_{epoch+1}_f1_{current_f1:.4f}'
             )
+            os.makedirs(checkpoint_path, exist_ok=True)
             
-            if hasattr(model, 'module') and hasattr(model.module, 'save_pretrained'):
-                model.module.save_pretrained(checkpoint_path)
-            else:
-                model.save_pretrained(checkpoint_path)
+            # 保存模型配置
+            model.config.save_pretrained(checkpoint_path)
             
+            # 保存模型权重
+            state_dict = model.state_dict()
+            safetensors.torch.save_file(state_dict, os.path.join(checkpoint_path, "model.safetensors"))
+            
+            # 保存分词器
             tokenizer.save_pretrained(checkpoint_path)
-            logger.info(f'保存检查点到 {checkpoint_path}')
+            logger.info(f"保存检查点到: {checkpoint_path}")
         
         # 控制检查点总数
         checkpoints = sorted(
