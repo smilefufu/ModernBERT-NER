@@ -120,159 +120,74 @@ def extract_entities_and_relations(outputs, text, tokenizer, offset_mapping):
     ner_logits = outputs.ner_logits[0]  # [seq_len, num_labels]
     ner_labels = torch.argmax(ner_logits, dim=-1)  # [seq_len]
     
-    # 提取实体span
-    entities = []
-    current_entity = None
-    last_end = -1
-    
-    for i, (label, (start, end)) in enumerate(zip(ner_labels, offset_mapping)):
-        # 跳过特殊token
-        if start == end:
-            continue
-            
-        if label == 1:  # B
-            # 如果有正在处理的实体，先保存它
-            if current_entity is not None:
-                entities.append(current_entity)
-            
-            # 开始新实体
-            current_entity = {
-                'start_idx': int(start),
-                'text': text[start:end],
-                'token_start': i,
-                'token_end': i
-            }
-            last_end = end
-        elif label == 2 and current_entity is not None:  # I
-            # 只有当这个token紧接着上一个token时才合并
-            if start == last_end:
-                current_entity['text'] = text[current_entity['start_idx']:end]
-                current_entity['token_end'] = i
-                last_end = end
-            else:
-                # 如果不连续，保存当前实体并开始新实体
-                entities.append(current_entity)
-                current_entity = None
-        elif label == 0:  # O
-            # 保存当前实体
-            if current_entity is not None:
-                entities.append(current_entity)
-                current_entity = None
-    
-    # 处理最后一个实体
-    if current_entity is not None:
-        entities.append(current_entity)
-    
-    # 过滤掉空文本的实体
-    entities = [e for e in entities if e['text'].strip()]
-    
-    # 提取关系
-    relations = []
-    if len(entities) > 1:
-        # 构建实体对
-        batch_size = 1
-        max_relations = len(entities) * (len(entities) - 1)
-        entity_spans = torch.zeros((batch_size, max_relations, 4), dtype=torch.long)
-        
-        relation_idx = 0
-        for i in range(len(entities)):
-            for j in range(len(entities)):
-                if i != j:
-                    entity_spans[0, relation_idx] = torch.tensor([
-                        entities[i]['token_start'], entities[i]['token_end'],
-                        entities[j]['token_start'], entities[j]['token_end']
-                    ])
-                    relation_idx += 1
-        
-        # 再次进行推理，这次带上实体spans
-        with torch.no_grad():
-            outputs = model(
-                input_ids=inputs['input_ids'],
-                attention_mask=inputs['attention_mask'],
-                entity_spans=entity_spans.to(device)
-            )
-        
-        # 提取关系
-        relation_logits = outputs.relation_logits[0]  # [num_pairs, num_relations]
-        relation_scores = torch.softmax(relation_logits[:relation_idx], dim=-1)
-        
-        relation_idx = 0
-        for i in range(len(entities)):
-            for j in range(len(entities)):
-                if i != j:
-                    rel_type = torch.argmax(relation_scores[relation_idx]).item()
-                    if rel_type > 0:  # 0表示无关系
-                        relations.append({
-                            'subject': entities[i]['text'],
-                            'subject_start_idx': entities[i]['start_idx'],
-                            'object': {
-                                '@value': entities[j]['text']
-                            },
-                            'object_start_idx': entities[j]['start_idx'],
-                            'relation_id': rel_type,
-                            'score': relation_scores[relation_idx, rel_type].item()
-                        })
-                    relation_idx += 1
+    # 获取实际的 tokens
+    tokens = tokenizer.convert_ids_to_tokens(outputs.input_ids[0])
+    predictions = ner_labels.cpu().numpy()
     
     logger.debug("\nToken 和标签对应关系:")
-    tokens = tokenizer.convert_ids_to_tokens(inputs['input_ids'][0])
-    predictions = ner_labels.cpu().numpy()
     for i, (token, pred) in enumerate(zip(tokens, predictions)):
         logger.debug(f"位置 {i}: Token='{token}' (长度={len(token)}), 标签={pred}")
     
-    logger.debug("\n实体合并过程:")
+    entities = []
     current_entity = None
+    
+    logger.debug("\n实体识别过程:")
     for i, (token, pred) in enumerate(zip(tokens, predictions)):
         if pred == 0:  # O tag
             if current_entity is not None:
-                logger.debug(f"\n完成实体: {current_entity}")
+                logger.debug(f"完成实体: {current_entity}")
                 entities.append(current_entity)
                 current_entity = None
         elif pred == 1:  # B tag
             if current_entity is not None:
-                logger.debug(f"\n完成实体: {current_entity}")
+                logger.debug(f"完成实体: {current_entity}")
                 entities.append(current_entity)
-            start = i
+            
+            # 获取当前token对应的原始文本范围
+            token_start, token_end = offset_mapping[i]
             current_entity = {
-                "start": start,
-                "end": start + 1,
+                "start_idx": token_start,
+                "end_idx": token_end,
+                "text": text[token_start:token_end],
                 "tokens": [token]
             }
-            logger.debug(f"\n开始新实体: 位置={start}, 首个Token='{token}'")
+            logger.debug(f"开始新实体: 位置={i}, Token='{token}', 文本范围={token_start}:{token_end}")
+            
         elif pred == 2:  # I tag
-            if current_entity is not None and i == current_entity["end"]:
-                current_entity["end"] = i + 1
+            if current_entity is not None:
+                # 获取当前token对应的原始文本范围
+                token_start, token_end = offset_mapping[i]
+                current_entity["end_idx"] = token_end
                 current_entity["tokens"].append(token)
-                logger.debug(f"扩展实体: 添加Token='{token}', 当前tokens={current_entity['tokens']}")
+                current_entity["text"] = text[current_entity["start_idx"]:token_end]
+                logger.debug(f"扩展实体: 添加Token='{token}', 当前文本='{current_entity['text']}'")
             else:
-                if current_entity is not None:
-                    logger.debug(f"\n完成实体: {current_entity}")
-                    entities.append(current_entity)
-                start = i
+                # 如果遇到孤立的I标签，当作B标签处理
+                token_start, token_end = offset_mapping[i]
                 current_entity = {
-                    "start": start,
-                    "end": start + 1,
+                    "start_idx": token_start,
+                    "end_idx": token_end,
+                    "text": text[token_start:token_end],
                     "tokens": [token]
                 }
-                logger.debug(f"\n开始新实体(I): 位置={start}, Token='{token}'")
+                logger.debug(f"开始新实体(I): 位置={i}, Token='{token}', 文本范围={token_start}:{token_end}")
     
     if current_entity is not None:
-        logger.debug(f"\n完成最后一个实体: {current_entity}")
+        logger.debug(f"完成最后一个实体: {current_entity}")
         entities.append(current_entity)
     
     logger.debug("\n最终识别的实体:")
     for e in entities:
-        logger.debug(f"实体: '{e['text']}', 位置: {e['start_idx']}-{e['token_end']}")
+        logger.debug(f"实体: '{e['text']}', 位置: {e['start_idx']}-{e['end_idx']}")
     
     logger.debug("="*50 + "\n")
-    return entities, relations
+    return entities, []
 
 def predict(text, model, tokenizer, device, max_length=512):
     """对输入文本进行推理"""
     logger.info(f"处理文本: {text}")
     
     # 预处理文本
-    global inputs  # 使其可以在 extract_entities_and_relations 中访问
     inputs = tokenizer(
         text,
         max_length=max_length,
