@@ -872,12 +872,23 @@ def plot_training_curves(metrics_history: Dict[str, List[float]], config: Dict[s
     """
     if not config['output']['plot_metrics']['enabled']:
         return
+    
+    # 设置中文字体
+    plt.rcParams['font.sans-serif'] = ['SimHei', 'Arial Unicode MS', 'DejaVu Sans']  # 优先使用的字体列表
+    plt.rcParams['axes.unicode_minus'] = False  # 解决负号显示问题
         
     # 使用 matplotlib 自带的样式
     plt.style.use('bmh')  # 使用 bmh 样式，它提供了一个清晰的网格和柔和的颜色
     
     # 使用固定的配置值
     metrics_to_plot = ['loss', 'f1', 'precision', 'recall']
+    # 中文显示的指标名称映射
+    metric_names = {
+        'loss': '损失',
+        'f1': 'F1分数',
+        'precision': '精确率',
+        'recall': '召回率'
+    }
     figsize = (12, 8)
     dpi = 300
     
@@ -892,14 +903,14 @@ def plot_training_curves(metrics_history: Dict[str, List[float]], config: Dict[s
     for ax, metric in zip(axes, metrics_to_plot):
         if f'train_{metric}' in metrics_history:
             ax.plot(epochs, metrics_history[f'train_{metric}'], 
-                   label=f'训练集 {metric}', marker='o')
+                   label=f'训练集 {metric_names[metric]}', marker='o')
         if f'eval_{metric}' in metrics_history:
             ax.plot(epochs, metrics_history[f'eval_{metric}'], 
-                   label=f'验证集 {metric}', marker='o')
+                   label=f'验证集 {metric_names[metric]}', marker='o')
         
-        ax.set_xlabel('Epoch')
-        ax.set_ylabel(metric)
-        ax.set_title(f'{metric} 曲线')
+        ax.set_xlabel('训练轮次')
+        ax.set_ylabel(metric_names[metric])
+        ax.set_title(f'{metric_names[metric]}曲线')
         ax.grid(True)
         ax.legend()
     
@@ -1018,6 +1029,23 @@ def main():
         # 每个epoch结束后更新训练曲线
         if config['output']['plot_metrics']['enabled']:
             plot_training_curves(metrics_history, config, config['output']['output_dir'])
+        
+        # 保存最佳模型（基于F1）
+        if current_f1 > best_f1:
+            best_f1 = current_f1
+            output_dir = os.path.join(config['output']['output_dir'], f"model_epoch_{epoch+1}_f1_{best_f1:.4f}")
+            os.makedirs(output_dir, exist_ok=True)
+            
+            # 保存模型配置
+            model.config.save_pretrained(output_dir)
+            
+            # 保存模型权重
+            state_dict = model.state_dict()
+            safetensors.torch.save_file(state_dict, os.path.join(output_dir, "model.safetensors"))
+            
+            # 保存分词器
+            tokenizer.save_pretrained(output_dir)
+            logger.info(f"保存最佳模型到: {output_dir}")
         
         # 定期保存检查点
         if (epoch + 1) % config['output']['save_checkpoint_epochs'] == 0:
