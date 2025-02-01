@@ -113,8 +113,19 @@ class CMeIEDataset(Dataset):
             max_length=self.max_length,
             padding='max_length',
             truncation=True,
-            return_offsets_mapping=True
+            return_offsets_mapping=True,
+            add_special_tokens=True,  # 确保添加特殊token
+            return_token_type_ids=True,  # 返回token类型ID
+            return_attention_mask=True  # 返回注意力掩码
         )
+        
+        # 输出分词调试信息（仅对前100个样本）
+        if idx < 100:
+            tokens = self.tokenizer.convert_ids_to_tokens(encoding['input_ids'])
+            logger.debug(f"\n样本 {idx} 分词结果:")
+            logger.debug(f"原文: {text}")
+            logger.debug(f"分词: {' '.join(tokens)}")
+            logger.debug(f"位置映射: {encoding['offset_mapping']}")
         
         # 获取token的位置映射
         offset_mapping = encoding.pop('offset_mapping')

@@ -1,6 +1,6 @@
 # 模型配置
 model:
-  model_name_or_path: "/Users/fufu/.cache/modelscope/hub/answerdotai/ModernBERT-large"
+  model_name_or_path: "/Users/fufu/Downloads/modern_bert_multilingual"
   num_labels: 3
   num_relations: 53
   entity_types: ["疾病", "症状", "检查", "手术", "药物", "其他治疗", "部位", "社会学", "流行病学", "预后", "其他"]

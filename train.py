@@ -238,9 +238,9 @@ class CMeIEDataset(Dataset):
                 model_max_length=max_length,
                 use_fast=True,
                 do_lower_case=False,
-                strip_accents=False,
+                clean_up_tokenization_spaces=False,
                 tokenize_chinese_chars=True,
-                encoding='utf-8'
+                strip_accents=False
             )
         else:
             self.tokenizer = tokenizer

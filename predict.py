@@ -97,9 +97,9 @@ def load_model(model_path, device='cuda' if torch.cuda.is_available() else 'cpu'
     else:
         raise ValueError(f"模型路径不存在: {model_path}")
     
-    # 检查加载后的权重
-    logger.info("权重加载完成，检查最终权重...")
-    check_model_weights(model, "加载权重后")
+    # # 检查加载后的权重
+    # logger.info("权重加载完成，检查最终权重...")
+    # check_model_weights(model, "加载权重后")
     
     # 加载分词器
     tokenizer = AutoTokenizer.from_pretrained(
@@ -107,9 +107,9 @@ def load_model(model_path, device='cuda' if torch.cuda.is_available() else 'cpu'
         model_max_length=config.max_position_embeddings,
         use_fast=True,
         do_lower_case=False,
-        strip_accents=False,
+        clean_up_tokenization_spaces=False,
         tokenize_chinese_chars=True,
-        encoding='utf-8'
+        strip_accents=False
     )
     
     # 输出分词器配置信息
@@ -117,7 +117,8 @@ def load_model(model_path, device='cuda' if torch.cuda.is_available() else 'cpu'
     logger.debug(f"词表大小: {len(tokenizer)}")
     logger.debug(f"分词器类型: {type(tokenizer).__name__}")
     logger.debug(f"特殊token: {tokenizer.all_special_tokens}")
-    logger.debug(f"词表示例(前10个): {list(tokenizer.get_vocab().items())[:10]}")
+    logger.debug(f"特殊token IDs: {tokenizer.all_special_ids}")
+    logger.debug(f"词表示例(前10个中文token): {[token for token, id in list(tokenizer.get_vocab().items())[:1000] if '\u4e00' <= token <= '\u9fff'][:10]}")
     
     model = model.to(device)
     model.eval()

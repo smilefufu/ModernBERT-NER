@@ -17,6 +17,10 @@ class ModernBertForRelationExtraction(ModernBertPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
         
+        # 检查词表大小
+        if config.vocab_size < 150000:  # 如果词表太小，可能不是多语言模型
+            logger.warning(f"警告：词表大小({config.vocab_size})可能不足以支持中文处理。建议使用词表大小>150000的多语言模型。")
+        
         # 设置任务相关的参数
         self.num_labels = config.num_labels if hasattr(config, "num_labels") else 3
         self.num_relations = config.num_relations if hasattr(config, "num_relations") else 53
