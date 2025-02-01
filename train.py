@@ -11,6 +11,10 @@ from utils.metrics import calculate_ner_metrics, calculate_re_metrics, format_me
 from data.cmeie import CMeIEDataset, collate_fn
 import math
 import safetensors.torch
+import matplotlib.pyplot as plt
+import numpy as np
+from typing import Dict, List, Any
+from collections import defaultdict
 
 # 配置日志
 debug_logger = logging.getLogger('debug')
@@ -104,11 +108,11 @@ def load_config(config_path):
         return yaml.safe_load(f)
 
 def set_device(config):
-    """设置设备"""
-    if torch.backends.mps.is_available() and config['device']['use_mps']:
-        device = torch.device('mps')
-    elif torch.cuda.is_available() and config['device']['use_cuda']:
+    """设置设备，优先使用 CUDA，其次 MPS，最后 CPU"""
+    if torch.cuda.is_available():
         device = torch.device('cuda')
+    elif torch.backends.mps.is_available():
+        device = torch.device('mps')
     else:
         device = torch.device('cpu')
     logger.info(f'使用设备: {device}')
@@ -858,6 +862,53 @@ def evaluate(model, data_loader, device, config):
     
     return results
 
+def plot_training_curves(metrics_history: Dict[str, List[float]], config: Dict[str, Any], output_dir: str):
+    """绘制训练曲线
+    
+    Args:
+        metrics_history: 包含各个指标历史数据的字典
+        config: 配置字典
+        output_dir: 输出目录
+    """
+    if not config['output']['plot_metrics']['enabled']:
+        return
+        
+    plt.style.use('seaborn')
+    metrics_to_plot = ['loss', 'f1', 'precision', 'recall']
+    figsize = (12, 8)
+    dpi = 300
+    
+    # 为每个指标创建一个子图
+    n_metrics = len(metrics_to_plot)
+    fig, axes = plt.subplots(n_metrics, 1, figsize=figsize, dpi=dpi)
+    if n_metrics == 1:
+        axes = [axes]
+    
+    epochs = range(1, len(next(iter(metrics_history.values()))) + 1)
+    
+    for ax, metric in zip(axes, metrics_to_plot):
+        if f'train_{metric}' in metrics_history:
+            ax.plot(epochs, metrics_history[f'train_{metric}'], 
+                   label=f'训练集 {metric}', marker='o')
+        if f'eval_{metric}' in metrics_history:
+            ax.plot(epochs, metrics_history[f'eval_{metric}'], 
+                   label=f'验证集 {metric}', marker='o')
+        
+        ax.set_xlabel('Epoch')
+        ax.set_ylabel(metric)
+        ax.set_title(f'{metric} 曲线')
+        ax.grid(True)
+        ax.legend()
+    
+    plt.tight_layout()
+    
+    # 保存图像
+    save_path = os.path.join(output_dir, 'training_curves.png')
+    plt.savefig(save_path)
+    plt.close()
+    
+    logger.info(f"训练曲线已保存到: {save_path}")
+
 def main():
     """主函数"""
     # 解析参数
@@ -881,6 +932,9 @@ def main():
     best_loss = float('inf')
     best_f1 = 0.0
     
+    # 初始化指标历史记录
+    metrics_history = defaultdict(list)
+    
     # 训练循环
     epochs = trange(config['training']['num_train_epochs'], desc="训练进度")
     for epoch in epochs:
@@ -888,8 +942,45 @@ def main():
         train_loss = train_epoch(model, train_loader, optimizer, scheduler, device, epoch, config)
         logger.info(f'Epoch {epoch+1}/{config["training"]["num_train_epochs"]} - Train Loss: {train_loss:.4f}')
         
-        # 评估
+        # 记录训练集损失
+        metrics_history['train_loss'].append(train_loss)
+        
+        # 对训练集进行评估（如果需要绘制训练集的指标）
+        if config['output']['plot_metrics']['enabled']:
+            with torch.no_grad():
+                train_metrics = evaluate(model, train_loader, device, config)
+                metrics_to_plot = ['loss', 'f1', 'precision', 'recall']
+                for metric in metrics_to_plot:
+                    if metric == 'loss':
+                        continue  # 损失已经记录
+                    if 'ner' in train_metrics and metric in train_metrics['ner']:
+                        metrics_history[f'train_{metric}'].append(train_metrics['ner'][metric])
+                    if 're' in train_metrics and metric in train_metrics['re']:
+                        # 如果有多个任务，取平均值
+                        value = train_metrics['re'][metric]
+                        if f'train_{metric}' in metrics_history:
+                            metrics_history[f'train_{metric}'][-1] = (metrics_history[f'train_{metric}'][-1] + value) / 2
+                        else:
+                            metrics_history[f'train_{metric}'].append(value)
+        
+        # 评估验证集
         eval_metrics = evaluate(model, eval_loader, device, config)
+        
+        # 记录验证集指标
+        metrics_history['eval_loss'].append(eval_metrics['loss'])
+        metrics_to_plot = ['loss', 'f1', 'precision', 'recall']
+        for metric in metrics_to_plot:
+            if metric == 'loss':
+                continue  # 损失已经记录
+            if 'ner' in eval_metrics and metric in eval_metrics['ner']:
+                metrics_history[f'eval_{metric}'].append(eval_metrics['ner'][metric])
+            if 're' in eval_metrics and metric in eval_metrics['re']:
+                # 如果有多个任务，取平均值
+                value = eval_metrics['re'][metric]
+                if f'eval_{metric}' in metrics_history:
+                    metrics_history[f'eval_{metric}'][-1] = (metrics_history[f'eval_{metric}'][-1] + value) / 2
+                else:
+                    metrics_history[f'eval_{metric}'].append(value)
         
         # 记录评估结果
         logger.info(f'Epoch {epoch+1}/{config["training"]["num_train_epochs"]} - 评估结果:')
@@ -921,25 +1012,12 @@ def main():
         if num_tasks > 0:
             current_f1 = current_f1 / num_tasks
         
-        # 保存最佳模型（基于F1）
-        if current_f1 > best_f1:
-            best_f1 = current_f1
-            output_dir = os.path.join(config['output']['output_dir'], f"model_epoch_{epoch+1}_f1_{best_f1:.4f}")
-            os.makedirs(output_dir, exist_ok=True)
-            
-            # 保存模型配置
-            model.config.save_pretrained(output_dir)
-            
-            # 保存模型权重
-            state_dict = model.state_dict()
-            safetensors.torch.save_file(state_dict, os.path.join(output_dir, "model.safetensors"))
-            
-            # 保存分词器
-            tokenizer.save_pretrained(output_dir)
-            logger.info(f"保存最佳模型到: {output_dir}")
+        # 每个epoch结束后更新训练曲线
+        if config['output']['plot_metrics']['enabled']:
+            plot_training_curves(metrics_history, config, config['output']['output_dir'])
         
         # 定期保存检查点
-        if (epoch + 1) % config['output'].get('save_checkpoint_epochs', 5) == 0:
+        if (epoch + 1) % config['output']['save_checkpoint_epochs'] == 0:
             checkpoint_path = os.path.join(
                 config['output']['output_dir'],
                 f'checkpoint_epoch_{epoch+1}_f1_{current_f1:.4f}'
@@ -956,17 +1034,6 @@ def main():
             # 保存分词器
             tokenizer.save_pretrained(checkpoint_path)
             logger.info(f"保存检查点到: {checkpoint_path}")
-        
-        # 控制检查点总数
-        checkpoints = sorted(
-            [d for d in os.listdir(config['output']['output_dir']) if d.startswith('checkpoint_')],
-            key=lambda x: int(x.split('_')[2])
-        )
-        while len(checkpoints) > config['output'].get('save_total_limit', 3):
-            oldest_checkpoint = os.path.join(config['output']['output_dir'], checkpoints[0])
-            import shutil
-            shutil.rmtree(oldest_checkpoint)
-            checkpoints.pop(0)
 
 if __name__ == "__main__":
     main()

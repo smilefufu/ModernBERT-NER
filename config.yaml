@@ -35,31 +35,13 @@ data:
   schema_file: "./data/53_schemas.jsonl"
   max_seq_length: 1024
 
-# 设备配置
-device:
-  use_cuda: true
-  use_mps: true
-
 # 输出配置
 output:
   output_dir: "./outputs"
   save_checkpoint_epochs: 5
-  save_total_limit: 3
-  save_strategy: "f1"
-  early_stopping: 
-    patience: 5
-    min_delta: 0.001
-    monitor: "f1"
+  plot_metrics:
+    enabled: true
 
 # 评估配置
 evaluation:
-  metrics: 
-    - precision
-    - recall
-    - f1
-    - confusion_matrix
   eval_steps: 100
-  logging:
-    log_predictions: true
-    max_wrong_samples: 100
-    confusion_matrix: true
