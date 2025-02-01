@@ -5,7 +5,7 @@ import json
 import logging
 import torch
 from torch.utils.data import Dataset
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional, Tuple, Set
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +67,41 @@ class CMeIEDataset(Dataset):
         """返回数据集大小"""
         return len(self.data)
 
+    def extract_entities_from_spo(self, text: str, spo_list: List[Dict]) -> List[Tuple[str, int, int]]:
+        """从 spo_list 中提取实体信息
+        Args:
+            text: 原始文本
+            spo_list: SPO列表
+        Returns:
+            实体列表，每个实体是一个元组 (实体文本, 起始位置, 结束位置)
+        """
+        entities: Set[Tuple[str, int, int]] = set()
+        
+        for spo in spo_list:
+            # 处理主实体
+            subject_text = spo['subject']
+            subject_start = spo['subject_start_idx']
+            subject_end = subject_start + len(subject_text)
+            
+            # 处理客实体
+            object_text = spo['object'].get('@value', '')
+            object_start = spo['object_start_idx']
+            object_end = object_start + len(object_text)
+            
+            # 验证位置的正确性
+            if text[subject_start:subject_end] == subject_text:
+                entities.add((subject_text, subject_start, subject_end))
+            else:
+                logger.warning(f"主实体位置与文本不匹配: {subject_text}")
+                
+            if text[object_start:object_end] == object_text:
+                entities.add((object_text, object_start, object_end))
+            else:
+                logger.warning(f"客实体位置与文本不匹配: {object_text}")
+        
+        # 按照起始位置排序，确保标注的一致性
+        return sorted(entities, key=lambda x: (x[1], x[2]))
+
     def __getitem__(self, idx: int) -> Dict[str, Any]:
         """获取单个样本"""
         sample = self.data[idx]
@@ -87,15 +122,11 @@ class CMeIEDataset(Dataset):
         # 初始化NER标签序列（使用BIO标注方案）
         labels = [0] * len(encoding['input_ids'])  # 0表示O标签
         
-        # 记录实体span
-        entity_spans = []
+        # 从 spo_list 中提取实体信息
+        entities = self.extract_entities_from_spo(text, sample['spo_list'])
         
-        # 处理实体
-        for entity in sample.get('entities', []):
-            start_idx = entity['start_idx']
-            # 通过实体文本长度计算结束位置
-            end_idx = start_idx + len(entity['entity'])
-            
+        # 标注实体
+        for entity_text, start_idx, end_idx in entities:
             # 找到实体的token范围
             token_start = None
             token_end = None
@@ -111,8 +142,6 @@ class CMeIEDataset(Dataset):
                 labels[token_start] = 1  # B
                 for i in range(token_start + 1, token_end + 1):
                     labels[i] = 2  # I
-                
-                entity_spans.append((token_start, token_end))
         
         # 初始化关系矩阵
         max_relations = 64  # 每个样本最多处理的关系数
@@ -121,7 +150,7 @@ class CMeIEDataset(Dataset):
         
         # 处理实体关系
         relation_count = 0
-        for spo in sample.get('spo_list', []):
+        for spo in sample['spo_list']:
             if relation_count >= max_relations:
                 break
                 
@@ -136,12 +165,6 @@ class CMeIEDataset(Dataset):
             # 计算实体结束位置
             subject_end = subject_start + len(subject_text)
             object_end = object_start + len(object_text)
-            
-            # 验证位置的正确性
-            if not (text[subject_start:subject_end] == subject_text and 
-                   text[object_start:object_end] == object_text):
-                logger.warning(f"实体位置与文本不匹配: {subject_text}, {object_text}")
-                continue
             
             # 找到对应的token范围
             subject_token_start = None
@@ -184,25 +207,16 @@ def collate_fn(batch: List[Dict[str, Any]]) -> Dict[str, torch.Tensor]:
     Returns:
         batch字典
     """
-    # 获取batch中最大的实体数量
-    max_entities = max(len(item['entity_spans']) for item in batch)
-    
-    # 填充关系矩阵
-    for item in batch:
-        num_entities = len(item['entity_spans'])
-        if num_entities < max_entities:
-            # 填充关系矩阵
-            for row in item['relations']:
-                row.extend([0] * (max_entities - num_entities))
-            for _ in range(max_entities - num_entities):
-                item['relations'].append([0] * max_entities)
-            # 填充实体spans
-            item['entity_spans'].extend([(0, 0)] * (max_entities - num_entities))
+    input_ids = torch.tensor([item['input_ids'] for item in batch])
+    attention_mask = torch.tensor([item['attention_mask'] for item in batch])
+    labels = torch.tensor([item['labels'] for item in batch])
+    relations = torch.stack([item['relations'] for item in batch])
+    entity_spans = torch.stack([item['entity_spans'] for item in batch])
     
     return {
-        'input_ids': torch.tensor([item['input_ids'] for item in batch]),
-        'attention_mask': torch.tensor([item['attention_mask'] for item in batch]),
-        'labels': torch.tensor([item['labels'] for item in batch]),
-        'relations': torch.tensor([item['relations'] for item in batch]),
-        'entity_spans': torch.tensor([item['entity_spans'] for item in batch])
+        'input_ids': input_ids,
+        'attention_mask': attention_mask,
+        'labels': labels,
+        'relations': relations,
+        'entity_spans': entity_spans
     }
