@@ -109,7 +109,38 @@ def load_model(model_path, device='cuda' if torch.cuda.is_available() else 'cpu'
     
     return model, tokenizer, device
 
-def extract_entities_and_relations(outputs, text, tokenizer, offset_mapping):
+def predict(text, model, tokenizer, device, max_length=512):
+    """对输入文本进行推理"""
+    model.eval()
+    
+    # 预处理文本
+    inputs = tokenizer(
+        text,
+        max_length=max_length,
+        padding=True,
+        truncation=True,
+        return_offsets_mapping=True,
+        return_tensors="pt"
+    )
+    
+    input_ids = inputs["input_ids"].to(device)
+    attention_mask = inputs["attention_mask"].to(device)
+    offset_mapping = inputs["offset_mapping"][0].numpy()
+    
+    # 模型推理
+    with torch.no_grad():
+        outputs = model(input_ids, attention_mask=attention_mask)
+    
+    # 提取实体和关系
+    entities, relations = extract_entities_and_relations(outputs, text, tokenizer, offset_mapping, input_ids)
+    
+    return {
+        "text": text,
+        "entities": entities,
+        "relations": relations
+    }
+
+def extract_entities_and_relations(outputs, text, tokenizer, offset_mapping, input_ids):
     """从模型输出中提取实体和关系"""
     logger.debug("\n" + "="*50)
     logger.debug("开始处理新文本")
@@ -121,7 +152,7 @@ def extract_entities_and_relations(outputs, text, tokenizer, offset_mapping):
     ner_labels = torch.argmax(ner_logits, dim=-1)  # [seq_len]
     
     # 获取实际的 tokens
-    tokens = tokenizer.convert_ids_to_tokens(outputs.input_ids[0])
+    tokens = tokenizer.convert_ids_to_tokens(input_ids[0])
     predictions = ner_labels.cpu().numpy()
     
     logger.debug("\nToken 和标签对应关系:")
@@ -146,8 +177,8 @@ def extract_entities_and_relations(outputs, text, tokenizer, offset_mapping):
             # 获取当前token对应的原始文本范围
             token_start, token_end = offset_mapping[i]
             current_entity = {
-                "start_idx": token_start,
-                "end_idx": token_end,
+                "start_idx": int(token_start),
+                "end_idx": int(token_end),
                 "text": text[token_start:token_end],
                 "tokens": [token]
             }
@@ -157,7 +188,7 @@ def extract_entities_and_relations(outputs, text, tokenizer, offset_mapping):
             if current_entity is not None:
                 # 获取当前token对应的原始文本范围
                 token_start, token_end = offset_mapping[i]
-                current_entity["end_idx"] = token_end
+                current_entity["end_idx"] = int(token_end)
                 current_entity["tokens"].append(token)
                 current_entity["text"] = text[current_entity["start_idx"]:token_end]
                 logger.debug(f"扩展实体: 添加Token='{token}', 当前文本='{current_entity['text']}'")
@@ -165,8 +196,8 @@ def extract_entities_and_relations(outputs, text, tokenizer, offset_mapping):
                 # 如果遇到孤立的I标签，当作B标签处理
                 token_start, token_end = offset_mapping[i]
                 current_entity = {
-                    "start_idx": token_start,
-                    "end_idx": token_end,
+                    "start_idx": int(token_start),
+                    "end_idx": int(token_end),
                     "text": text[token_start:token_end],
                     "tokens": [token]
                 }
@@ -176,49 +207,15 @@ def extract_entities_and_relations(outputs, text, tokenizer, offset_mapping):
         logger.debug(f"完成最后一个实体: {current_entity}")
         entities.append(current_entity)
     
+    # 过滤掉特殊token（[CLS], [SEP], [PAD]）产生的实体
+    entities = [e for e in entities if not any(special in e["tokens"] for special in ["[CLS]", "[SEP]", "[PAD]"])]
+    
     logger.debug("\n最终识别的实体:")
     for e in entities:
         logger.debug(f"实体: '{e['text']}', 位置: {e['start_idx']}-{e['end_idx']}")
     
     logger.debug("="*50 + "\n")
     return entities, []
-
-def predict(text, model, tokenizer, device, max_length=512):
-    """对输入文本进行推理"""
-    logger.info(f"处理文本: {text}")
-    
-    # 预处理文本
-    inputs = tokenizer(
-        text,
-        max_length=max_length,
-        padding=True,
-        truncation=True,
-        return_tensors='pt',
-        return_offsets_mapping=True
-    )
-    
-    logger.debug(f"分词结果: {tokenizer.convert_ids_to_tokens(inputs['input_ids'][0])}")
-    offset_mapping = inputs.pop('offset_mapping')[0]
-    
-    # 将输入移到指定设备
-    inputs = {k: v.to(device) for k, v in inputs.items()}
-    
-    # 第一步：识别实体
-    with torch.no_grad():
-        outputs = model(**inputs)
-    
-    # 提取实体和关系
-    entities, relations = extract_entities_and_relations(outputs, text, tokenizer, offset_mapping)
-    
-    logger.info(f"识别出 {len(entities)} 个实体:")
-    for entity in entities:
-        logger.info(f"  - {entity['text']} (位置: {entity['start_idx']})")
-    
-    logger.info(f"识别出 {len(relations)} 个关系:")
-    for relation in relations:
-        logger.info(f"  - {relation['subject']} -> {relation['object']['@value']} (得分: {relation['score']:.4f})")
-    
-    return entities, relations
 
 if __name__ == '__main__':
     # 示例用法
