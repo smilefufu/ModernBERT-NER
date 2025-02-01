@@ -130,8 +130,8 @@ def extract_entities_and_relations(outputs, text, tokenizer, offset_mapping):
                     entities.append(current_entity)
                 current_entity = None
         elif label == 1:  # B
+            # 处理之前的实体
             if current_entity is not None:
-                # 处理之前的实体
                 entity_end = current_entity['start_idx'] + len(current_entity['text'])
                 token_start = None
                 token_end = None
@@ -153,11 +153,33 @@ def extract_entities_and_relations(outputs, text, tokenizer, offset_mapping):
                 'text': text[start:end]
             }
         elif label == 2:  # I
+            # 只有当前实体存在时才处理 I 标签
             if current_entity is not None:
-                current_entity['text'] = text[current_entity['start_idx']:end]
+                # 检查当前token是否紧接着上一个token
+                prev_end = current_entity['start_idx'] + len(current_entity['text'])
+                if start == prev_end:
+                    # 扩展当前实体
+                    current_entity['text'] = text[current_entity['start_idx']:end]
+                else:
+                    # 如果不连续，结束当前实体并忽略这个 I 标签
+                    entity_end = current_entity['start_idx'] + len(current_entity['text'])
+                    token_start = None
+                    token_end = None
+                    for j, (tok_start, tok_end) in enumerate(offset_mapping):
+                        if tok_start <= current_entity['start_idx'] < tok_end:
+                            token_start = j
+                        if tok_start < entity_end <= tok_end:
+                            token_end = j
+                            break
+                    
+                    if token_start is not None and token_end is not None:
+                        current_entity['token_start'] = token_start
+                        current_entity['token_end'] = token_end
+                        entities.append(current_entity)
+                    current_entity = None
     
+    # 处理最后一个实体
     if current_entity is not None:
-        # 处理最后一个实体
         entity_end = current_entity['start_idx'] + len(current_entity['text'])
         token_start = None
         token_end = None
