@@ -107,7 +107,7 @@ def extract_entities_and_relations(outputs, text, tokenizer, offset_mapping):
     ner_labels = torch.argmax(ner_logits, dim=-1)  # [seq_len]
     
     # 获取关系
-    relation_logits = outputs.relation_logits[0]  # [num_entities, num_entities, num_relations]
+    relation_logits = outputs.relation_logits[0]  # [num_relations]
     
     # 提取实体span
     entities = []
@@ -123,16 +123,11 @@ def extract_entities_and_relations(outputs, text, tokenizer, offset_mapping):
                 entities.append(current_entity)
             current_entity = {
                 'start_idx': int(start),
-                'end_idx': int(end),
-                'start': start,
-                'end': end,
                 'text': text[start:end]
             }
         elif label == 2:  # I
             if current_entity is not None:
-                current_entity['end_idx'] = int(end)
-                current_entity['end'] = end
-                current_entity['text'] = text[current_entity['start']:end]
+                current_entity['text'] = text[current_entity['start_idx']:end]
     
     if current_entity is not None:
         entities.append(current_entity)
@@ -151,7 +146,11 @@ def extract_entities_and_relations(outputs, text, tokenizer, offset_mapping):
                     if rel_type > 0:  # 0表示无关系
                         relations.append({
                             'subject': entities[i]['text'],
-                            'object': entities[j]['text'],
+                            'subject_start_idx': entities[i]['start_idx'],
+                            'object': {
+                                '@value': entities[j]['text']
+                            },
+                            'object_start_idx': entities[j]['start_idx'],
                             'relation_id': rel_type,
                             'score': relation_scores[i, j, rel_type].item()
                         })
@@ -178,97 +177,22 @@ def predict(text, model, tokenizer, device, max_length=512):
     # 将输入移到指定设备
     inputs = {k: v.to(device) for k, v in inputs.items()}
     
-    # 第一步：识别实体
+    # 进行推理
     with torch.no_grad():
-        # 先不传入entity_spans，只获取NER结果
         outputs = model(**inputs)
-        
-    # 从输出中提取实体
-    ner_logits = outputs.ner_logits[0]  # [seq_len, num_labels]
-    ner_labels = torch.argmax(ner_logits, dim=-1)  # [seq_len]
     
-    # 提取实体span
-    entities = []
-    current_entity = None
+    # 提取实体和关系
+    entities, relations = extract_entities_and_relations(outputs, text, tokenizer, offset_mapping)
     
-    for i, (label, (start, end)) in enumerate(zip(ner_labels.cpu(), offset_mapping)):
-        if label == 0:  # O
-            if current_entity is not None:
-                entities.append(current_entity)
-                current_entity = None
-        elif label == 1:  # B
-            if current_entity is not None:
-                entities.append(current_entity)
-            current_entity = {
-                'start_idx': i,
-                'end_idx': i + 1,
-                'start': start,
-                'end': end,
-                'text': text[start:end]
-            }
-        elif label == 2:  # I
-            if current_entity is not None:
-                current_entity['end_idx'] = i + 1
-                current_entity['end'] = end
-                current_entity['text'] = text[current_entity['start']:end]
+    logger.info(f"识别出 {len(entities)} 个实体:")
+    for entity in entities:
+        logger.info(f"  - {entity['text']} (位置: {entity['start_idx']})")
     
-    if current_entity is not None:
-        entities.append(current_entity)
+    logger.info(f"识别出 {len(relations)} 个关系:")
+    for relation in relations:
+        logger.info(f"  - {relation['subject']} -> {relation['object']['@value']} (得分: {relation['score']:.4f})")
     
-    logger.info(f"识别出的实体: {entities}")
-    
-    # 过滤掉空文本的实体
-    entities = [e for e in entities if e['text'].strip()]
-    
-    # 第二步：构建实体对并预测关系
-    batch_size = inputs['input_ids'].size(0)
-    max_relations = len(entities) * (len(entities) - 1) if len(entities) > 1 else 1
-    entity_spans = torch.zeros((batch_size, max_relations, 4), dtype=torch.long, device=device)
-    
-    # 构建所有可能的实体对
-    relation_idx = 0
-    for i in range(len(entities)):
-        for j in range(len(entities)):
-            if i != j:
-                entity_spans[0, relation_idx] = torch.tensor([
-                    entities[i]['start_idx'],
-                    entities[i]['end_idx'],
-                    entities[j]['start_idx'],
-                    entities[j]['end_idx']
-                ], device=device)
-                relation_idx += 1
-    
-    logger.info(f"构建的实体对数量: {relation_idx}")
-    
-    # 第三步：预测关系
-    with torch.no_grad():
-        outputs = model(**inputs, entity_spans=entity_spans)
-    
-    # 解析结果
-    relations = []
-    if len(entities) > 1:
-        relation_logits = outputs.relation_logits[0]  # [num_pairs, num_relations]
-        relation_scores = torch.softmax(relation_logits[:relation_idx], dim=-1)
-        
-        relation_idx = 0
-        for i in range(len(entities)):
-            for j in range(len(entities)):
-                if i != j:
-                    rel_type = torch.argmax(relation_scores[relation_idx]).item()
-                    if rel_type > 0:  # 0表示无关系
-                        relations.append({
-                            'subject': entities[i]['text'],
-                            'object': entities[j]['text'],
-                            'relation_id': rel_type,
-                            'score': relation_scores[relation_idx, rel_type].item()
-                        })
-                    relation_idx += 1
-    
-    return {
-        'text': text,
-        'entities': entities,
-        'relations': relations
-    }
+    return entities, relations
 
 if __name__ == '__main__':
     # 示例用法
@@ -282,13 +206,3 @@ if __name__ == '__main__':
     result = predict(text, model, tokenizer, device)
 
     print(result)
-    
-    # # 打印结果
-    # print("\n输入文本:", result['text'])
-    # print("\n识别的实体:")
-    # for entity in result['entities']:
-    #     print(f"- {entity['text']} ({entity['start']}:{entity['end']})")
-    
-    # print("\n识别的关系:")
-    # for relation in result['relations']:
-    #     print(f"- {relation['subject']} -> {relation['relation_id']} -> {relation['object']} (score: {relation['score']:.3f})")
