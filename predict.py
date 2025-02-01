@@ -9,8 +9,19 @@ from transformers import AutoTokenizer, AutoConfig
 from modern_model_re import ModernBertForRelationExtraction
 
 # 配置日志
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('predict')
+logger.setLevel(logging.DEBUG)
+
+# 创建文件处理器
+debug_handler = logging.FileHandler('debug.txt', mode='w', encoding='utf-8')
+debug_handler.setLevel(logging.DEBUG)
+
+# 设置日志格式
+formatter = logging.Formatter('%(message)s')
+debug_handler.setFormatter(formatter)
+
+# 添加处理器到日志记录器
+logger.addHandler(debug_handler)
 
 def check_model_weights(model, stage=""):
     """检查模型权重的状态"""
@@ -100,7 +111,10 @@ def load_model(model_path, device='cuda' if torch.cuda.is_available() else 'cpu'
 
 def extract_entities_and_relations(outputs, text, tokenizer, offset_mapping):
     """从模型输出中提取实体和关系"""
-    logger.info("提取实体和关系...")
+    logger.debug("\n" + "="*50)
+    logger.debug("开始处理新文本")
+    logger.debug("="*50)
+    logger.debug(f"原始文本: {text}")
     
     # 获取NER标签
     ner_logits = outputs.ner_logits[0]  # [seq_len, num_labels]
@@ -200,6 +214,57 @@ def extract_entities_and_relations(outputs, text, tokenizer, offset_mapping):
                         })
                     relation_idx += 1
     
+    logger.debug("\nToken 和标签对应关系:")
+    tokens = tokenizer.convert_ids_to_tokens(inputs['input_ids'][0])
+    predictions = ner_labels.cpu().numpy()
+    for i, (token, pred) in enumerate(zip(tokens, predictions)):
+        logger.debug(f"位置 {i}: Token='{token}' (长度={len(token)}), 标签={pred}")
+    
+    logger.debug("\n实体合并过程:")
+    current_entity = None
+    for i, (token, pred) in enumerate(zip(tokens, predictions)):
+        if pred == 0:  # O tag
+            if current_entity is not None:
+                logger.debug(f"\n完成实体: {current_entity}")
+                entities.append(current_entity)
+                current_entity = None
+        elif pred == 1:  # B tag
+            if current_entity is not None:
+                logger.debug(f"\n完成实体: {current_entity}")
+                entities.append(current_entity)
+            start = i
+            current_entity = {
+                "start": start,
+                "end": start + 1,
+                "tokens": [token]
+            }
+            logger.debug(f"\n开始新实体: 位置={start}, 首个Token='{token}'")
+        elif pred == 2:  # I tag
+            if current_entity is not None and i == current_entity["end"]:
+                current_entity["end"] = i + 1
+                current_entity["tokens"].append(token)
+                logger.debug(f"扩展实体: 添加Token='{token}', 当前tokens={current_entity['tokens']}")
+            else:
+                if current_entity is not None:
+                    logger.debug(f"\n完成实体: {current_entity}")
+                    entities.append(current_entity)
+                start = i
+                current_entity = {
+                    "start": start,
+                    "end": start + 1,
+                    "tokens": [token]
+                }
+                logger.debug(f"\n开始新实体(I): 位置={start}, Token='{token}'")
+    
+    if current_entity is not None:
+        logger.debug(f"\n完成最后一个实体: {current_entity}")
+        entities.append(current_entity)
+    
+    logger.debug("\n最终识别的实体:")
+    for e in entities:
+        logger.debug(f"实体: '{e['text']}', 位置: {e['start_idx']}-{e['token_end']}")
+    
+    logger.debug("="*50 + "\n")
     return entities, relations
 
 def predict(text, model, tokenizer, device, max_length=512):
