@@ -106,9 +106,6 @@ def extract_entities_and_relations(outputs, text, tokenizer, offset_mapping):
     ner_logits = outputs.ner_logits[0]  # [seq_len, num_labels]
     ner_labels = torch.argmax(ner_logits, dim=-1)  # [seq_len]
     
-    # 获取关系
-    relation_logits = outputs.relation_logits[0]  # [num_relations]
-    
     # 提取实体span
     entities = []
     current_entity = None
@@ -116,11 +113,41 @@ def extract_entities_and_relations(outputs, text, tokenizer, offset_mapping):
     for i, (label, (start, end)) in enumerate(zip(ner_labels, offset_mapping)):
         if label == 0:  # O
             if current_entity is not None:
-                entities.append(current_entity)
+                # 找到实体的token范围
+                entity_end = current_entity['start_idx'] + len(current_entity['text'])
+                token_start = None
+                token_end = None
+                for j, (tok_start, tok_end) in enumerate(offset_mapping):
+                    if tok_start <= current_entity['start_idx'] < tok_end:
+                        token_start = j
+                    if tok_start < entity_end <= tok_end:
+                        token_end = j
+                        break
+                
+                if token_start is not None and token_end is not None:
+                    current_entity['token_start'] = token_start
+                    current_entity['token_end'] = token_end
+                    entities.append(current_entity)
                 current_entity = None
         elif label == 1:  # B
             if current_entity is not None:
-                entities.append(current_entity)
+                # 处理之前的实体
+                entity_end = current_entity['start_idx'] + len(current_entity['text'])
+                token_start = None
+                token_end = None
+                for j, (tok_start, tok_end) in enumerate(offset_mapping):
+                    if tok_start <= current_entity['start_idx'] < tok_end:
+                        token_start = j
+                    if tok_start < entity_end <= tok_end:
+                        token_end = j
+                        break
+                
+                if token_start is not None and token_end is not None:
+                    current_entity['token_start'] = token_start
+                    current_entity['token_end'] = token_end
+                    entities.append(current_entity)
+            
+            # 开始新实体
             current_entity = {
                 'start_idx': int(start),
                 'text': text[start:end]
@@ -130,19 +157,60 @@ def extract_entities_and_relations(outputs, text, tokenizer, offset_mapping):
                 current_entity['text'] = text[current_entity['start_idx']:end]
     
     if current_entity is not None:
-        entities.append(current_entity)
+        # 处理最后一个实体
+        entity_end = current_entity['start_idx'] + len(current_entity['text'])
+        token_start = None
+        token_end = None
+        for j, (tok_start, tok_end) in enumerate(offset_mapping):
+            if tok_start <= current_entity['start_idx'] < tok_end:
+                token_start = j
+            if tok_start < entity_end <= tok_end:
+                token_end = j
+                break
+        
+        if token_start is not None and token_end is not None:
+            current_entity['token_start'] = token_start
+            current_entity['token_end'] = token_end
+            entities.append(current_entity)
     
-    # 过滤掉空文本的实体
-    entities = [e for e in entities if e['text'].strip()]
+    # 过滤掉空文本的实体和没有找到token范围的实体
+    entities = [e for e in entities if e['text'].strip() and 'token_start' in e]
     
     # 提取关系
     relations = []
-    if len(entities) > 1:  # 至少需要两个实体才可能有关系
-        relation_scores = torch.softmax(relation_logits[:len(entities), :len(entities)], dim=-1)
+    if len(entities) > 1:
+        # 构建实体对
+        batch_size = 1
+        max_relations = len(entities) * (len(entities) - 1)
+        entity_spans = torch.zeros((batch_size, max_relations, 4), dtype=torch.long)
+        
+        relation_idx = 0
         for i in range(len(entities)):
             for j in range(len(entities)):
                 if i != j:
-                    rel_type = torch.argmax(relation_scores[i, j]).item()
+                    entity_spans[0, relation_idx] = torch.tensor([
+                        entities[i]['token_start'], entities[i]['token_end'],
+                        entities[j]['token_start'], entities[j]['token_end']
+                    ])
+                    relation_idx += 1
+        
+        # 再次进行推理，这次带上实体spans
+        with torch.no_grad():
+            outputs = model(
+                input_ids=inputs['input_ids'],
+                attention_mask=inputs['attention_mask'],
+                entity_spans=entity_spans.to(device)
+            )
+        
+        # 提取关系
+        relation_logits = outputs.relation_logits[0]  # [num_pairs, num_relations]
+        relation_scores = torch.softmax(relation_logits[:relation_idx], dim=-1)
+        
+        relation_idx = 0
+        for i in range(len(entities)):
+            for j in range(len(entities)):
+                if i != j:
+                    rel_type = torch.argmax(relation_scores[relation_idx]).item()
                     if rel_type > 0:  # 0表示无关系
                         relations.append({
                             'subject': entities[i]['text'],
@@ -152,8 +220,9 @@ def extract_entities_and_relations(outputs, text, tokenizer, offset_mapping):
                             },
                             'object_start_idx': entities[j]['start_idx'],
                             'relation_id': rel_type,
-                            'score': relation_scores[i, j, rel_type].item()
+                            'score': relation_scores[relation_idx, rel_type].item()
                         })
+                    relation_idx += 1
     
     return entities, relations
 
@@ -162,6 +231,7 @@ def predict(text, model, tokenizer, device, max_length=512):
     logger.info(f"处理文本: {text}")
     
     # 预处理文本
+    global inputs  # 使其可以在 extract_entities_and_relations 中访问
     inputs = tokenizer(
         text,
         max_length=max_length,
@@ -177,7 +247,7 @@ def predict(text, model, tokenizer, device, max_length=512):
     # 将输入移到指定设备
     inputs = {k: v.to(device) for k, v in inputs.items()}
     
-    # 进行推理
+    # 第一步：识别实体
     with torch.no_grad():
         outputs = model(**inputs)
     
