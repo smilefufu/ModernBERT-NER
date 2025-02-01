@@ -123,6 +123,14 @@ def predict(text, model, tokenizer, device, max_length=512):
         return_tensors="pt"
     )
     
+    # 添加分词调试日志
+    logger.debug("\nToken 和标签对应关系:")
+    for i, (token_id, offset) in enumerate(zip(inputs["input_ids"][0], inputs["offset_mapping"][0])):
+        token = tokenizer.decode([token_id.item()])
+        start, end = offset.numpy()
+        token_text = text[start:end] if start < end else ""
+        logger.debug(f"位置 {i}: Token='{token}' (原文='{token_text}', 长度={len(token)})")
+    
     input_ids = inputs["input_ids"].to(device)
     attention_mask = inputs["attention_mask"].to(device)
     offset_mapping = inputs["offset_mapping"][0].numpy()
@@ -172,7 +180,6 @@ def extract_entities_and_relations(outputs, text, tokenizer, offset_mapping, inp
         elif pred == 1:  # B tag
             if current_entity is not None:
                 logger.debug(f"完成实体: {current_entity}")
-                entities.append(current_entity)
             
             # 获取当前token对应的原始文本范围
             token_start, token_end = offset_mapping[i]
