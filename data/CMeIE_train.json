@@ -2108,6 +2108,129 @@
         ]
     },
     {
+        "text": "急性髓性白血病@###疑似APML查看全部首选–维A酸####第一选择[维A酸](/druglink?dd=MARTINDALE)open_in_new对于疑似急性早幼粒细胞白血病(APML)的患者，一旦怀疑该诊断，就应立即启动口服维A酸（又名全反式维甲酸[ATRA]）早期治疗，以便减少与APML相关的凝血病，在证实诊断后，开始化疗。",
+        "spo_list": [
+            {
+                "Combined": false,
+                "predicate": "同义词",
+                "subject": "急性早幼粒细胞白血病",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "APML"
+                },
+                "object_type": {
+                    "@value": "疾病"
+                },
+                "subject_start_idx": 84,
+                "subject_end_idx": 93,
+                "object_start_idx": 13,
+                "object_end_idx": 16
+            },
+            {
+                "Combined": false,
+                "predicate": "药物治疗",
+                "subject": "急性早幼粒细胞白血病",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "维 A 酸"
+                },
+                "object_type": {
+                    "@value": "药物"
+                },
+                "subject_start_idx": 84,
+                "subject_end_idx": 93,
+                "object_start_idx": 28,
+                "object_end_idx": 30
+            },
+            {
+                "Combined": false,
+                "predicate": "同义词",
+                "subject": "维 A 酸",
+                "subject_type": "药物",
+                "object": {
+                    "@value": "ATRA"
+                },
+                "object_type": {
+                    "@value": "药物"
+                },
+                "subject_start_idx": 28,
+                "subject_end_idx": 30,
+                "object_start_idx": 133,
+                "object_end_idx": 136
+            },
+            {
+                "Combined": false,
+                "predicate": "药物治疗",
+                "subject": "急性髓性白血病",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "维 A 酸"
+                },
+                "object_type": {
+                    "@value": "药物"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 6,
+                "object_start_idx": 28,
+                "object_end_idx": 30
+            },
+            {
+                "Combined": false,
+                "predicate": "化疗",
+                "subject": "急性早幼粒细胞白血病",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "化疗"
+                },
+                "object_type": {
+                    "@value": "其他治疗"
+                },
+                "subject_start_idx": 84,
+                "subject_end_idx": 93,
+                "object_start_idx": 169,
+                "object_end_idx": 170
+            }
+        ],
+        "entities": [
+            {
+                "start_idx": 84,
+                "end_idx": 93,
+                "entity": "急性早幼粒细胞白血病",
+                "type": "疾病"
+            },
+            {
+                "start_idx": 13,
+                "end_idx": 16,
+                "entity": "APML",
+                "type": "疾病"
+            },
+            {
+                "start_idx": 28,
+                "end_idx": 30,
+                "entity": "维 A 酸",
+                "type": "药物"
+            },
+            {
+                "start_idx": 133,
+                "end_idx": 136,
+                "entity": "ATRA",
+                "type": "药物"
+            },
+            {
+                "start_idx": 0,
+                "end_idx": 6,
+                "entity": "急性髓性白血病",
+                "type": "疾病"
+            },
+            {
+                "start_idx": 169,
+                "end_idx": 170,
+                "entity": "化疗",
+                "type": "其他治疗"
+            }
+        ]
+    },
+    {
         "text": "痛风@###短期管理如无禁忌症，非甾体抗炎药(NSAID)是急性发作的一线治疗药物。",
         "spo_list": [
             {
@@ -3277,6 +3400,85 @@
         ]
     },
     {
+        "text": "疟疾感染@##病史和查体###关键诊断因素###常见查看全部###存在感染疟疾的风险因素主要风险因素包括去疟疾流行区旅行，未服用抗疟药物预防或服药不当，在流行区未使用杀虫剂处理蚊帐。",
+        "spo_list": [
+            {
+                "Combined": false,
+                "predicate": "风险评估因素",
+                "subject": "疟疾",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "去疟疾流行区旅行"
+                },
+                "object_type": {
+                    "@value": "社会学"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 1,
+                "object_start_idx": 54,
+                "object_end_idx": 61
+            },
+            {
+                "Combined": false,
+                "predicate": "风险评估因素",
+                "subject": "疟疾",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "未服用抗疟药物预防"
+                },
+                "object_type": {
+                    "@value": "社会学"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 1,
+                "object_start_idx": 63,
+                "object_end_idx": 71
+            },
+            {
+                "Combined": false,
+                "predicate": "风险评估因素",
+                "subject": "疟疾",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "服药不当"
+                },
+                "object_type": {
+                    "@value": "社会学"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 1,
+                "object_start_idx": 73,
+                "object_end_idx": 76
+            }
+        ],
+        "entities": [
+            {
+                "start_idx": 0,
+                "end_idx": 1,
+                "entity": "疟疾",
+                "type": "疾病"
+            },
+            {
+                "start_idx": 54,
+                "end_idx": 61,
+                "entity": "去疟疾流行区旅行",
+                "type": "社会学"
+            },
+            {
+                "start_idx": 63,
+                "end_idx": 71,
+                "entity": "未服用抗疟药物预防",
+                "type": "社会学"
+            },
+            {
+                "start_idx": 73,
+                "end_idx": 76,
+                "entity": "服药不当",
+                "type": "社会学"
+            }
+        ]
+    },
+    {
         "text": "【诊断和鉴别诊断】中枢性尿崩症需与其他原因引起的多饮、多尿相鉴别：高渗性利尿如糖尿病、肾小管酸中毒等,根据血糖、尿比重、尿渗透压及其他临床表现即可鉴别。2.药物治疗1-脱氨-8-D-精氨酸加压素（DDAVP):为合成的AVP类似物。",
         "spo_list": [
             {
@@ -3982,6 +4184,98 @@
         ]
     },
     {
+        "text": "急性咽喉炎@##检查###首要检查###查看全部###A型链球菌（GAS）快速抗原测试检查结果检查针对A型链球菌的快速抗原检测试验可在床边立即进行。急性咽喉炎@结果在GAS感染和无症状定植中呈阳性###需要考虑的检查###查看全部###A型链球菌(GAS)的咽拭子培养检查结果检查咽拭子培养是诊断A型链球菌最敏感（90%-95%）和最特异的检查方法。",
+        "spo_list": [
+            {
+                "Combined": true,
+                "predicate": "实验室检查",
+                "subject": "急性咽喉炎",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "A 型链球菌 (GAS) 的咽拭子培养"
+                },
+                "object_type": {
+                    "@value": "检查"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 4,
+                "object_start_idx": 122,
+                "object_end_idx": 137
+            },
+            {
+                "Combined": true,
+                "predicate": "实验室检查",
+                "subject": "急性咽喉炎",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "A型链球菌（GAS）快速抗原测试"
+                },
+                "object_type": {
+                    "@value": "检查"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 4,
+                "object_start_idx": 29,
+                "object_end_idx": 44
+            }
+        ],
+        "entities": [
+            {
+                "start_idx": 0,
+                "end_idx": 4,
+                "entity": "急性咽喉炎",
+                "type": "疾病"
+            },
+            {
+                "start_idx": 122,
+                "end_idx": 137,
+                "entity": "A 型链球菌 (GAS) 的咽拭子培养",
+                "type": "检查"
+            },
+            {
+                "start_idx": 29,
+                "end_idx": 44,
+                "entity": "A型链球菌（GAS）快速抗原测试",
+                "type": "检查"
+            }
+        ]
+    },
+    {
+        "text": "食管癌@单独放疗只适用于那些因严重疾病不能耐受同时放化疗的患者。食管癌@参考当地医学专家指南确定药物剂量非手术患者–第二–内镜下消融±支架±短距离放疗用于缓解症状如果患者不适合手术或联合放化疗，直接作用于局部肿瘤的消融治疗可以用以缓解肿瘤相关的症状。",
+        "spo_list": [
+            {
+                "Combined": true,
+                "predicate": "放射治疗",
+                "subject": "食管癌",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "单独放疗"
+                },
+                "object_type": {
+                    "@value": "其他治疗"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 2,
+                "object_start_idx": 4,
+                "object_end_idx": 7
+            }
+        ],
+        "entities": [
+            {
+                "start_idx": 0,
+                "end_idx": 2,
+                "entity": "食管癌",
+                "type": "疾病"
+            },
+            {
+                "start_idx": 4,
+                "end_idx": 7,
+                "entity": "单独放疗",
+                "type": "其他治疗"
+            }
+        ]
+    },
+    {
         "text": "慢性胰腺炎@一项纳入14项研究的meta分析表明，胰腺炎首次发作后的慢性胰腺炎患病率为10%，而多次发作后的慢性胰腺炎患病率为36%。慢性胰腺炎@发病率极高，其中多数为特发性/热带性胰腺炎。",
         "spo_list": [
             {
@@ -4234,6 +4528,41 @@
                 "end_idx": 8,
                 "entity": "光疗",
                 "type": "其他治疗"
+            }
+        ]
+    },
+    {
+        "text": "麻风病@###弱查看全部###遗传易感性有证据显示，不是所有_麻风分枝杆菌感染者_都会进展为麻风病。",
+        "spo_list": [
+            {
+                "Combined": false,
+                "predicate": "高危因素",
+                "subject": "麻风病",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "遗传易感性"
+                },
+                "object_type": {
+                    "@value": "社会学"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 2,
+                "object_start_idx": 17,
+                "object_end_idx": 21
+            }
+        ],
+        "entities": [
+            {
+                "start_idx": 0,
+                "end_idx": 2,
+                "entity": "麻风病",
+                "type": "疾病"
+            },
+            {
+                "start_idx": 17,
+                "end_idx": 21,
+                "entity": "遗传易感性",
+                "type": "社会学"
             }
         ]
     },
@@ -6818,6 +7147,85 @@
         ]
     },
     {
+        "text": "基底细胞癌@##检查###首要检查###查看全部###皮肤病理组织学活检检查结果检查肿瘤的诊断是基于组织学的；建议应选取刮除活检或钻取活检。",
+        "spo_list": [
+            {
+                "Combined": false,
+                "predicate": "组织学检查",
+                "subject": "基底细胞癌",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "皮肤病理组织学活检"
+                },
+                "object_type": {
+                    "@value": "检查"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 4,
+                "object_start_idx": 29,
+                "object_end_idx": 37
+            },
+            {
+                "Combined": false,
+                "predicate": "组织学检查",
+                "subject": "基底细胞癌",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "刮除活检"
+                },
+                "object_type": {
+                    "@value": "检查"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 4,
+                "object_start_idx": 62,
+                "object_end_idx": 65
+            },
+            {
+                "Combined": false,
+                "predicate": "组织学检查",
+                "subject": "基底细胞癌",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "钻取活检"
+                },
+                "object_type": {
+                    "@value": "检查"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 4,
+                "object_start_idx": 67,
+                "object_end_idx": 70
+            }
+        ],
+        "entities": [
+            {
+                "start_idx": 0,
+                "end_idx": 4,
+                "entity": "基底细胞癌",
+                "type": "疾病"
+            },
+            {
+                "start_idx": 29,
+                "end_idx": 37,
+                "entity": "皮肤病理组织学活检",
+                "type": "检查"
+            },
+            {
+                "start_idx": 62,
+                "end_idx": 65,
+                "entity": "刮除活检",
+                "type": "检查"
+            },
+            {
+                "start_idx": 67,
+                "end_idx": 70,
+                "entity": "钻取活检",
+                "type": "检查"
+            }
+        ]
+    },
+    {
         "text": "帕金森病@*如果存在姿势不稳，应避免需要良好平衡的活动。",
         "spo_list": [
             {
@@ -6941,6 +7349,41 @@
                 "end_idx": 17,
                 "entity": "荨麻疹样皮疹",
                 "type": "疾病"
+            }
+        ]
+    },
+    {
+        "text": "磨牙症@###弱查看全部###遗传倾向孪生子研究和家族分布分析表明夜磨牙症存在遗传倾向。",
+        "spo_list": [
+            {
+                "Combined": false,
+                "predicate": "遗传因素",
+                "subject": "磨牙症",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "遗传倾向"
+                },
+                "object_type": {
+                    "@value": "社会学"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 2,
+                "object_start_idx": 17,
+                "object_end_idx": 20
+            }
+        ],
+        "entities": [
+            {
+                "start_idx": 0,
+                "end_idx": 2,
+                "entity": "磨牙症",
+                "type": "疾病"
+            },
+            {
+                "start_idx": 17,
+                "end_idx": 20,
+                "entity": "遗传倾向",
+                "type": "社会学"
             }
         ]
     },
@@ -7635,6 +8078,353 @@
         ]
     },
     {
+        "text": "肾细胞癌@##病史和查体###关键诊断因素###常见查看全部###存在的危险因素危险因素包括吸烟、男性、年龄为55到84岁、居住在发达国家、黑人或美洲土著民族、肥胖、高血压、阳性家族史、遗传性综合征病史、透析史、职业接触、多产次以及电离放射。",
+        "spo_list": [
+            {
+                "Combined": false,
+                "predicate": "高危因素",
+                "subject": "肾细胞癌",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "吸烟"
+                },
+                "object_type": {
+                    "@value": "社会学"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 3,
+                "object_start_idx": 48,
+                "object_end_idx": 49
+            },
+            {
+                "Combined": false,
+                "predicate": "高危因素",
+                "subject": "肾细胞癌",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "男性"
+                },
+                "object_type": {
+                    "@value": "社会学"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 3,
+                "object_start_idx": 51,
+                "object_end_idx": 52
+            },
+            {
+                "Combined": false,
+                "predicate": "高危因素",
+                "subject": "肾细胞癌",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "居住在发达国家"
+                },
+                "object_type": {
+                    "@value": "社会学"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 3,
+                "object_start_idx": 64,
+                "object_end_idx": 70
+            },
+            {
+                "Combined": false,
+                "predicate": "高危因素",
+                "subject": "肾细胞癌",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "黑人或美洲土著民族"
+                },
+                "object_type": {
+                    "@value": "社会学"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 3,
+                "object_start_idx": 72,
+                "object_end_idx": 80
+            },
+            {
+                "Combined": false,
+                "predicate": "高危因素",
+                "subject": "肾细胞癌",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "肥胖"
+                },
+                "object_type": {
+                    "@value": "社会学"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 3,
+                "object_start_idx": 82,
+                "object_end_idx": 83
+            },
+            {
+                "Combined": false,
+                "predicate": "高危因素",
+                "subject": "肾细胞癌",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "高血压"
+                },
+                "object_type": {
+                    "@value": "社会学"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 3,
+                "object_start_idx": 85,
+                "object_end_idx": 87
+            },
+            {
+                "Combined": false,
+                "predicate": "高危因素",
+                "subject": "肾细胞癌",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "阳性家族史"
+                },
+                "object_type": {
+                    "@value": "社会学"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 3,
+                "object_start_idx": 89,
+                "object_end_idx": 93
+            },
+            {
+                "Combined": false,
+                "predicate": "高危因素",
+                "subject": "肾细胞癌",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "遗传性综合征病史"
+                },
+                "object_type": {
+                    "@value": "社会学"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 3,
+                "object_start_idx": 95,
+                "object_end_idx": 102
+            },
+            {
+                "Combined": false,
+                "predicate": "高危因素",
+                "subject": "肾细胞癌",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "透析史"
+                },
+                "object_type": {
+                    "@value": "社会学"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 3,
+                "object_start_idx": 104,
+                "object_end_idx": 106
+            },
+            {
+                "Combined": false,
+                "predicate": "高危因素",
+                "subject": "肾细胞癌",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "职业接触"
+                },
+                "object_type": {
+                    "@value": "社会学"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 3,
+                "object_start_idx": 108,
+                "object_end_idx": 111
+            }
+        ],
+        "entities": [
+            {
+                "start_idx": 0,
+                "end_idx": 3,
+                "entity": "肾细胞癌",
+                "type": "疾病"
+            },
+            {
+                "start_idx": 48,
+                "end_idx": 49,
+                "entity": "吸烟",
+                "type": "社会学"
+            },
+            {
+                "start_idx": 51,
+                "end_idx": 52,
+                "entity": "男性",
+                "type": "社会学"
+            },
+            {
+                "start_idx": 64,
+                "end_idx": 70,
+                "entity": "居住在发达国家",
+                "type": "社会学"
+            },
+            {
+                "start_idx": 72,
+                "end_idx": 80,
+                "entity": "黑人或美洲土著民族",
+                "type": "社会学"
+            },
+            {
+                "start_idx": 82,
+                "end_idx": 83,
+                "entity": "肥胖",
+                "type": "社会学"
+            },
+            {
+                "start_idx": 85,
+                "end_idx": 87,
+                "entity": "高血压",
+                "type": "社会学"
+            },
+            {
+                "start_idx": 89,
+                "end_idx": 93,
+                "entity": "阳性家族史",
+                "type": "社会学"
+            },
+            {
+                "start_idx": 95,
+                "end_idx": 102,
+                "entity": "遗传性综合征病史",
+                "type": "社会学"
+            },
+            {
+                "start_idx": 104,
+                "end_idx": 106,
+                "entity": "透析史",
+                "type": "社会学"
+            },
+            {
+                "start_idx": 108,
+                "end_idx": 111,
+                "entity": "职业接触",
+                "type": "社会学"
+            }
+        ]
+    },
+    {
+        "text": "普通感冒@##检查###首要检查###查看全部###无初步检查检查结果检查通常不需要检测。普通感冒@结果临床诊断###需要考虑的检查###查看全部###全血细胞计数(FBC)检查结果检查在病毒感染时可能因淋巴细胞增多导致白细胞计数上升。",
+        "spo_list": [
+            {
+                "Combined": true,
+                "predicate": "实验室检查",
+                "subject": "普通感冒",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "全血细胞计数 (FBC)"
+                },
+                "object_type": {
+                    "@value": "检查"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 3,
+                "object_start_idx": 80,
+                "object_end_idx": 90
+            },
+            {
+                "Combined": true,
+                "predicate": "临床表现",
+                "subject": "普通感冒",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "淋巴细胞增多"
+                },
+                "object_type": {
+                    "@value": "症状"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 3,
+                "object_start_idx": 106,
+                "object_end_idx": 111
+            },
+            {
+                "Combined": true,
+                "predicate": "临床表现",
+                "subject": "普通感冒",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "白细胞计数上升"
+                },
+                "object_type": {
+                    "@value": "症状"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 3,
+                "object_start_idx": 114,
+                "object_end_idx": 120
+            }
+        ],
+        "entities": [
+            {
+                "start_idx": 0,
+                "end_idx": 3,
+                "entity": "普通感冒",
+                "type": "疾病"
+            },
+            {
+                "start_idx": 80,
+                "end_idx": 90,
+                "entity": "全血细胞计数 (FBC)",
+                "type": "检查"
+            },
+            {
+                "start_idx": 106,
+                "end_idx": 111,
+                "entity": "淋巴细胞增多",
+                "type": "症状"
+            },
+            {
+                "start_idx": 114,
+                "end_idx": 120,
+                "entity": "白细胞计数上升",
+                "type": "症状"
+            }
+        ]
+    },
+    {
+        "text": "急性胰腺炎@伴感染性胰腺坏死–附加–经皮导管引流针对经选择患者组部分患者的治疗推荐通常很多患者适合“渐进”方案，先从经皮引流开始。",
+        "spo_list": [
+            {
+                "Combined": false,
+                "predicate": "辅助治疗",
+                "subject": "感染性胰腺坏死",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "经皮导管引流"
+                },
+                "object_type": {
+                    "@value": "其他治疗"
+                },
+                "subject_start_idx": 7,
+                "subject_end_idx": 13,
+                "object_start_idx": 20,
+                "object_end_idx": 25
+            }
+        ],
+        "entities": [
+            {
+                "start_idx": 7,
+                "end_idx": 13,
+                "entity": "感染性胰腺坏死",
+                "type": "疾病"
+            },
+            {
+                "start_idx": 20,
+                "end_idx": 25,
+                "entity": "经皮导管引流",
+                "type": "其他治疗"
+            }
+        ]
+    },
+    {
         "text": "肝硬化@诱因包括上消化道出血、便秘、饮食摄入蛋白过多、腹泻和呕吐、低血糖、电解质紊乱；药物因素包括利尿剂和镇静剂、诊疗因素（例如腹穿放液和TIPSS）；感染、贫血、缺氧、低血压。",
         "spo_list": [
             {
@@ -8153,6 +8943,41 @@
                 "end_idx": 99,
                 "entity": "过期产儿",
                 "type": "流行病学"
+            }
+        ]
+    },
+    {
+        "text": "基底细胞癌@急性###在不影响美观的部位的低危亚型查看全部可接受手术的患者首选–传统手术在不需要保留组织的情况下是较好的治疗选择，传统手术几乎都可以使疾病完全治愈。",
+        "spo_list": [
+            {
+                "Combined": false,
+                "predicate": "手术治疗",
+                "subject": "基底细胞癌",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "传统手术"
+                },
+                "object_type": {
+                    "@value": "手术治疗"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 4,
+                "object_start_idx": 44,
+                "object_end_idx": 47
+            }
+        ],
+        "entities": [
+            {
+                "start_idx": 0,
+                "end_idx": 4,
+                "entity": "基底细胞癌",
+                "type": "疾病"
+            },
+            {
+                "start_idx": 44,
+                "end_idx": 47,
+                "entity": "传统手术",
+                "type": "手术治疗"
             }
         ]
     },
@@ -9052,6 +9877,41 @@
                 "end_idx": 92,
                 "entity": "IDA",
                 "type": "疾病"
+            }
+        ]
+    },
+    {
+        "text": "铅中毒@儿童血铅水平≥3.4μmol/L(≥70μg/dL)或＜3.4μmol/L(＜70μg/dL)但有急性症状–联合–入住ICU+支持性疗法（如果是脑病）针对经选择患者组全部患者的治疗推荐须在ICU管理脑病患者。",
+        "spo_list": [
+            {
+                "Combined": false,
+                "predicate": "辅助治疗",
+                "subject": "铅中毒",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "支持性疗法"
+                },
+                "object_type": {
+                    "@value": "其他治疗"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 2,
+                "object_start_idx": 69,
+                "object_end_idx": 73
+            }
+        ],
+        "entities": [
+            {
+                "start_idx": 0,
+                "end_idx": 2,
+                "entity": "铅中毒",
+                "type": "疾病"
+            },
+            {
+                "start_idx": 69,
+                "end_idx": 73,
+                "entity": "支持性疗法",
+                "type": "其他治疗"
             }
         ]
     },
@@ -10892,6 +11752,129 @@
         ]
     },
     {
+        "text": "慢性胰腺炎@附加–胰酶联合质子泵抑制剂针对经选择患者组部分患者的治疗推荐####第一选择[胰酶](/druglink?dd=MARTINDALE)open_in_new:用药剂量参考药品说明书和[奥美拉唑](/druglink?dd=MARTINDALE)open_in_new:10-20mg，口服，每日一次对于已经戒酒并已排除解剖学异常因素所致疼痛的慢性胰腺炎患者，在应用镇痛药物的同时应给予胰酶补充剂。",
+        "spo_list": [
+            {
+                "Combined": false,
+                "predicate": "药物治疗",
+                "subject": "慢性胰腺炎",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "胰酶联合质子泵抑制剂"
+                },
+                "object_type": {
+                    "@value": "药物"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 4,
+                "object_start_idx": 11,
+                "object_end_idx": 20
+            },
+            {
+                "Combined": false,
+                "predicate": "药物治疗",
+                "subject": "慢性胰腺炎",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "胰酶"
+                },
+                "object_type": {
+                    "@value": "药物"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 4,
+                "object_start_idx": 11,
+                "object_end_idx": 12
+            },
+            {
+                "Combined": false,
+                "predicate": "药物治疗",
+                "subject": "慢性胰腺炎",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "奥美拉唑"
+                },
+                "object_type": {
+                    "@value": "药物"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 4,
+                "object_start_idx": 100,
+                "object_end_idx": 103
+            },
+            {
+                "Combined": false,
+                "predicate": "药物治疗",
+                "subject": "慢性胰腺炎",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "镇痛药"
+                },
+                "object_type": {
+                    "@value": "药物"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 4,
+                "object_start_idx": 190,
+                "object_end_idx": 192
+            },
+            {
+                "Combined": false,
+                "predicate": "药物治疗",
+                "subject": "慢性胰腺炎",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "胰酶补充剂"
+                },
+                "object_type": {
+                    "@value": "药物"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 4,
+                "object_start_idx": 200,
+                "object_end_idx": 204
+            }
+        ],
+        "entities": [
+            {
+                "start_idx": 0,
+                "end_idx": 4,
+                "entity": "慢性胰腺炎",
+                "type": "疾病"
+            },
+            {
+                "start_idx": 11,
+                "end_idx": 20,
+                "entity": "胰酶联合质子泵抑制剂",
+                "type": "药物"
+            },
+            {
+                "start_idx": 11,
+                "end_idx": 12,
+                "entity": "胰酶",
+                "type": "药物"
+            },
+            {
+                "start_idx": 100,
+                "end_idx": 103,
+                "entity": "奥美拉唑",
+                "type": "药物"
+            },
+            {
+                "start_idx": 190,
+                "end_idx": 192,
+                "entity": "镇痛药",
+                "type": "药物"
+            },
+            {
+                "start_idx": 200,
+                "end_idx": 204,
+                "entity": "胰酶补充剂",
+                "type": "药物"
+            }
+        ]
+    },
+    {
         "text": "双糖不耐受患儿食用含双糖(包括乳糖、蔗糖、麦芽糖）的饮食可使腹泻加重,其中以乳糖不耐受最多见，治疗中应注意减少饮食中的双糖负荷，如采用不含乳糖代乳品或去乳糖配方奶粉等。过敏性腹泻的治疗:如果在应用无双糖饮食后腹泻仍不改善，应考虑食物过敏（如对牛奶过敏）的可能性,应回避过敏食物，也可以采用游离氨基酸或深度水解蛋白配方饮食。",
         "spo_list": [
             {
@@ -11365,6 +12348,41 @@
         ]
     },
     {
+        "text": "肺结核@##检查###首要检查###查看全部###胸部X线检查(CXR)检查结果检查一线检查此检查结果在免疫功能正常的个体中常出现异常。",
+        "spo_list": [
+            {
+                "Combined": false,
+                "predicate": "影像学检查",
+                "subject": "肺结核",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "胸部 X 线检查 (CXR)"
+                },
+                "object_type": {
+                    "@value": "检查"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 2,
+                "object_start_idx": 27,
+                "object_end_idx": 37
+            }
+        ],
+        "entities": [
+            {
+                "start_idx": 0,
+                "end_idx": 2,
+                "entity": "肺结核",
+                "type": "疾病"
+            },
+            {
+                "start_idx": 27,
+                "end_idx": 37,
+                "entity": "胸部 X 线检查 (CXR)",
+                "type": "检查"
+            }
+        ]
+    },
+    {
         "text": "幽门螺杆菌是慢性活动性胃炎的主要致病因素，是消化性溃疡发病的重要因素。幽门螺杆菌的长期感染也与胃腺癌和胃黏膜相关淋巴组织（MALT）淋巴瘤的发生相关。",
         "spo_list": [
             {
@@ -11672,6 +12690,41 @@
                 "end_idx": 44,
                 "entity": "染色体检査",
                 "type": "检查"
+            }
+        ]
+    },
+    {
+        "text": "急性阑尾炎@[急性生理学与慢性健康状况评分系统II(APACHEII)](/calculators/en-gb/ApacheScore.htm)穿孔–联合–阑尾切除术针对经选择患者组全部患者的治疗推荐有两种阑尾切除术术式：开腹和腹腔镜。",
+        "spo_list": [
+            {
+                "Combined": false,
+                "predicate": "手术治疗",
+                "subject": "急性阑尾炎",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "阑尾切除术"
+                },
+                "object_type": {
+                    "@value": "手术治疗"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 4,
+                "object_start_idx": 80,
+                "object_end_idx": 84
+            }
+        ],
+        "entities": [
+            {
+                "start_idx": 0,
+                "end_idx": 4,
+                "entity": "急性阑尾炎",
+                "type": "疾病"
+            },
+            {
+                "start_idx": 80,
+                "end_idx": 84,
+                "entity": "阑尾切除术",
+                "type": "手术治疗"
             }
         ]
     },
@@ -12962,6 +14015,85 @@
         ]
     },
     {
+        "text": "痛风@###弱查看全部###肥胖和胰岛素抵抗与高尿酸血症相关。",
+        "spo_list": [
+            {
+                "Combined": false,
+                "predicate": "高危因素",
+                "subject": "痛风",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "肥胖"
+                },
+                "object_type": {
+                    "@value": "社会学"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 1,
+                "object_start_idx": 16,
+                "object_end_idx": 17
+            },
+            {
+                "Combined": false,
+                "predicate": "高危因素",
+                "subject": "痛风",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "胰岛素抵抗"
+                },
+                "object_type": {
+                    "@value": "社会学"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 1,
+                "object_start_idx": 19,
+                "object_end_idx": 23
+            },
+            {
+                "Combined": false,
+                "predicate": "相关（转化）",
+                "subject": "痛风",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "高尿酸血症"
+                },
+                "object_type": {
+                    "@value": "疾病"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 1,
+                "object_start_idx": 25,
+                "object_end_idx": 29
+            }
+        ],
+        "entities": [
+            {
+                "start_idx": 0,
+                "end_idx": 1,
+                "entity": "痛风",
+                "type": "疾病"
+            },
+            {
+                "start_idx": 16,
+                "end_idx": 17,
+                "entity": "肥胖",
+                "type": "社会学"
+            },
+            {
+                "start_idx": 19,
+                "end_idx": 23,
+                "entity": "胰岛素抵抗",
+                "type": "社会学"
+            },
+            {
+                "start_idx": 25,
+                "end_idx": 29,
+                "entity": "高尿酸血症",
+                "type": "疾病"
+            }
+        ]
+    },
+    {
         "text": "帕金森病@##鉴别诊断###查看全部###进行性核上麻痹(progressivesupranuclearpalsy,PSP)体征/症状检查体征/症状在诊断后1年内出现凝视麻痹和早期跌倒。帕金森病@神经系统检查：垂直性凝视麻痹和明显姿势不稳。",
         "spo_list": [
             {
@@ -13464,6 +14596,107 @@
                 "end_idx": 10,
                 "entity": "SABR",
                 "type": "其他治疗"
+            }
+        ]
+    },
+    {
+        "text": "毛细胞白血病@如果初始治疗3~6个月后骨髓没有反应，应该对初始诊断的准确性进行再评估，因为只有大约4%的HCL患者对包含嘌呤类似物的起始治疗没有反应。毛细胞白血病@附加–支持治疗针对经选择患者组部分患者的治疗推荐支持治疗包括抗生素、非甾体抗炎药(NSAIDs;若培养阴性)、辐照血制品输注、粒细胞集落刺激因子(G-CSFs)，可能对HCL治疗起一定作用。",
+        "spo_list": [
+            {
+                "Combined": true,
+                "predicate": "药物治疗",
+                "subject": "HCL",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "抗生素"
+                },
+                "object_type": {
+                    "@value": "药物"
+                },
+                "subject_start_idx": 52,
+                "subject_end_idx": 54,
+                "object_start_idx": 114,
+                "object_end_idx": 116
+            },
+            {
+                "Combined": true,
+                "predicate": "药物治疗",
+                "subject": "HCL",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "非甾体抗炎药"
+                },
+                "object_type": {
+                    "@value": "药物"
+                },
+                "subject_start_idx": 52,
+                "subject_end_idx": 54,
+                "object_start_idx": 118,
+                "object_end_idx": 123
+            },
+            {
+                "Combined": true,
+                "predicate": "药物治疗",
+                "subject": "HCL",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "辐照血制品"
+                },
+                "object_type": {
+                    "@value": "药物"
+                },
+                "subject_start_idx": 52,
+                "subject_end_idx": 54,
+                "object_start_idx": 139,
+                "object_end_idx": 143
+            },
+            {
+                "Combined": true,
+                "predicate": "药物治疗",
+                "subject": "HCL",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "粒细胞集落刺激因子"
+                },
+                "object_type": {
+                    "@value": "药物"
+                },
+                "subject_start_idx": 52,
+                "subject_end_idx": 54,
+                "object_start_idx": 147,
+                "object_end_idx": 155
+            }
+        ],
+        "entities": [
+            {
+                "start_idx": 52,
+                "end_idx": 54,
+                "entity": "HCL",
+                "type": "疾病"
+            },
+            {
+                "start_idx": 114,
+                "end_idx": 116,
+                "entity": "抗生素",
+                "type": "药物"
+            },
+            {
+                "start_idx": 118,
+                "end_idx": 123,
+                "entity": "非甾体抗炎药",
+                "type": "药物"
+            },
+            {
+                "start_idx": 139,
+                "end_idx": 143,
+                "entity": "辐照血制品",
+                "type": "药物"
+            },
+            {
+                "start_idx": 147,
+                "end_idx": 155,
+                "entity": "粒细胞集落刺激因子",
+                "type": "药物"
             }
         ]
     },
@@ -14864,6 +16097,41 @@
         ]
     },
     {
+        "text": "尘肺@###罕见查看全部###胸部听诊时有湿啰音慢性铍肺可能会出现。",
+        "spo_list": [
+            {
+                "Combined": false,
+                "predicate": "临床表现",
+                "subject": "尘肺",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "胸部听诊时有湿啰音"
+                },
+                "object_type": {
+                    "@value": "症状"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 1,
+                "object_start_idx": 17,
+                "object_end_idx": 25
+            }
+        ],
+        "entities": [
+            {
+                "start_idx": 0,
+                "end_idx": 1,
+                "entity": "尘肺",
+                "type": "疾病"
+            },
+            {
+                "start_idx": 17,
+                "end_idx": 25,
+                "entity": "胸部听诊时有湿啰音",
+                "type": "症状"
+            }
+        ]
+    },
+    {
         "text": "研究发现CVS患儿发病前有过度的HPA激活，表现为血清促肾上腺皮质激素（CRF）、糖皮质激素水平升高及随后血清血管升压素、前列腺素E2和血尿儿茶酚胺水平增加，部分患儿表现发病时有高血压及液体潴留。",
         "spo_list": [
             {
@@ -15145,6 +16413,139 @@
                 "end_idx": 103,
                 "entity": "胸腔镜内脏神经切除术",
                 "type": "手术治疗"
+            }
+        ]
+    },
+    {
+        "text": "婴儿猝死综合征@###其他诊断因素###常见查看全部###无新陈代谢性疾病###无易激惹、困倦若存在这些症状，可能表明有感染、新陈代谢性疾病或心律失常。",
+        "spo_list": [
+            {
+                "Combined": false,
+                "predicate": "临床表现",
+                "subject": "新陈代谢性疾病",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "易激惹"
+                },
+                "object_type": {
+                    "@value": "症状"
+                },
+                "subject_start_idx": 32,
+                "subject_end_idx": 38,
+                "object_start_idx": 43,
+                "object_end_idx": 45
+            },
+            {
+                "Combined": false,
+                "predicate": "临床表现",
+                "subject": "感染",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "易激惹"
+                },
+                "object_type": {
+                    "@value": "症状"
+                },
+                "subject_start_idx": 62,
+                "subject_end_idx": 63,
+                "object_start_idx": 43,
+                "object_end_idx": 45
+            },
+            {
+                "Combined": false,
+                "predicate": "临床表现",
+                "subject": "感染",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "困倦"
+                },
+                "object_type": {
+                    "@value": "症状"
+                },
+                "subject_start_idx": 62,
+                "subject_end_idx": 63,
+                "object_start_idx": 47,
+                "object_end_idx": 48
+            },
+            {
+                "Combined": false,
+                "predicate": "临床表现",
+                "subject": "新陈代谢性疾病",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "困倦"
+                },
+                "object_type": {
+                    "@value": "症状"
+                },
+                "subject_start_idx": 32,
+                "subject_end_idx": 38,
+                "object_start_idx": 47,
+                "object_end_idx": 48
+            },
+            {
+                "Combined": false,
+                "predicate": "临床表现",
+                "subject": "心律失常",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "易激惹"
+                },
+                "object_type": {
+                    "@value": "症状"
+                },
+                "subject_start_idx": 73,
+                "subject_end_idx": 76,
+                "object_start_idx": 43,
+                "object_end_idx": 45
+            },
+            {
+                "Combined": false,
+                "predicate": "临床表现",
+                "subject": "心律失常",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "困倦"
+                },
+                "object_type": {
+                    "@value": "症状"
+                },
+                "subject_start_idx": 73,
+                "subject_end_idx": 76,
+                "object_start_idx": 47,
+                "object_end_idx": 48
+            }
+        ],
+        "entities": [
+            {
+                "start_idx": 32,
+                "end_idx": 38,
+                "entity": "新陈代谢性疾病",
+                "type": "疾病"
+            },
+            {
+                "start_idx": 43,
+                "end_idx": 45,
+                "entity": "易激惹",
+                "type": "症状"
+            },
+            {
+                "start_idx": 62,
+                "end_idx": 63,
+                "entity": "感染",
+                "type": "疾病"
+            },
+            {
+                "start_idx": 47,
+                "end_idx": 48,
+                "entity": "困倦",
+                "type": "症状"
+            },
+            {
+                "start_idx": 73,
+                "end_idx": 76,
+                "entity": "心律失常",
+                "type": "疾病"
             }
         ]
     },
@@ -16292,6 +17693,41 @@
         ]
     },
     {
+        "text": "肥厚型心肌病@##检查###首要检查###查看全部###心电图检查结果检查最常见的心电图异常是ST段或T波异常，可能包括ST段压低或巨大倒置T波。肥厚型心肌病@20%-50%的患者可有明显的Q波，多发生于II、III、aVF、V5和V6导联。",
+        "spo_list": [
+            {
+                "Combined": true,
+                "predicate": "影像学检查",
+                "subject": "肥厚型心肌病",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "心电图"
+                },
+                "object_type": {
+                    "@value": "检查"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 5,
+                "object_start_idx": 30,
+                "object_end_idx": 32
+            }
+        ],
+        "entities": [
+            {
+                "start_idx": 0,
+                "end_idx": 5,
+                "entity": "肥厚型心肌病",
+                "type": "疾病"
+            },
+            {
+                "start_idx": 30,
+                "end_idx": 32,
+                "entity": "心电图",
+                "type": "检查"
+            }
+        ]
+    },
+    {
         "text": "（4）其他：全身性疾病如高血压脑病、阿-斯综合征和尿毒症等，抗癫痫药物撤退，预防接种如百白破三联疫苗等均可发生惊厥。【临床表现】小儿惊厥多表现为全身性发作，患儿意识丧失，全身骨骼肌不自主、持续地强直收缩，或有节律的阵挛性收缩；也可表现为部分性发作，神志清楚或意识丧失，局限于单个肢体、单侧肢体半身性惊厥，有时半身性惊厥后产生暂时性肢体瘫痪，称为Todd麻痹。",
         "spo_list": [
             {
@@ -16487,6 +17923,113 @@
                 "end_idx": 57,
                 "entity": "钡餐检查",
                 "type": "检查"
+            }
+        ]
+    },
+    {
+        "text": "皮肤鳞状细胞癌@影响美观部位，直径大于2cm–附加–化疗针对经选择患者组部分患者的治疗推荐####第一选择[卡培他滨](/druglink?dd=MARTINDALE)open_in_new和[干扰素α-2b](/druglink?dd=MARTINDALE)open_in_new或[卡培他滨](/druglink?dd=MARTINDALE)open_in_new多系统化疗药物被用于治疗转移性皮肤鳞状细胞癌。",
+        "spo_list": [
+            {
+                "Combined": false,
+                "predicate": "化疗",
+                "subject": "皮肤鳞状细胞癌",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "化疗"
+                },
+                "object_type": {
+                    "@value": "其他治疗"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 6,
+                "object_start_idx": 28,
+                "object_end_idx": 29
+            },
+            {
+                "Combined": false,
+                "predicate": "药物治疗",
+                "subject": "皮肤鳞状细胞癌",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "卡培他滨"
+                },
+                "object_type": {
+                    "@value": "药物"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 6,
+                "object_start_idx": 56,
+                "object_end_idx": 59
+            },
+            {
+                "Combined": false,
+                "predicate": "药物治疗",
+                "subject": "皮肤鳞状细胞癌",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "干扰素α-2b"
+                },
+                "object_type": {
+                    "@value": "药物"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 6,
+                "object_start_idx": 99,
+                "object_end_idx": 105
+            },
+            {
+                "Combined": false,
+                "predicate": "药物治疗",
+                "subject": "转移性皮肤鳞状细胞癌",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "多系统化疗药物"
+                },
+                "object_type": {
+                    "@value": "药物"
+                },
+                "subject_start_idx": 198,
+                "subject_end_idx": 207,
+                "object_start_idx": 186,
+                "object_end_idx": 192
+            }
+        ],
+        "entities": [
+            {
+                "start_idx": 0,
+                "end_idx": 6,
+                "entity": "皮肤鳞状细胞癌",
+                "type": "疾病"
+            },
+            {
+                "start_idx": 28,
+                "end_idx": 29,
+                "entity": "化疗",
+                "type": "其他治疗"
+            },
+            {
+                "start_idx": 56,
+                "end_idx": 59,
+                "entity": "卡培他滨",
+                "type": "药物"
+            },
+            {
+                "start_idx": 99,
+                "end_idx": 105,
+                "entity": "干扰素α-2b",
+                "type": "药物"
+            },
+            {
+                "start_idx": 198,
+                "end_idx": 207,
+                "entity": "转移性皮肤鳞状细胞癌",
+                "type": "疾病"
+            },
+            {
+                "start_idx": 186,
+                "end_idx": 192,
+                "entity": "多系统化疗药物",
+                "type": "药物"
             }
         ]
     },
@@ -18864,6 +20407,164 @@
         ]
     },
     {
+        "text": "肥厚型心肌病@第二–心肌切除术/室间隔酒精消融/双腔起搏+避免高强度的运动####第一选择[外科心肌切除术](/druglink?dd=MARTINDALE)open_in_new####第二选择[室间隔酒精消融（仅限成人）](/druglink?dd=MARTINDALE)open_in_new####第三选择[双腔起搏](/druglink?dd=MARTINDALE)open_in_new心肌切除术是缓解儿童和成人HCM患者的药物难治性LV流出道梗阻的最佳治疗方式。",
+        "spo_list": [
+            {
+                "Combined": false,
+                "predicate": "手术治疗",
+                "subject": "肥厚型心肌病",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "心肌切除术"
+                },
+                "object_type": {
+                    "@value": "手术治疗"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 5,
+                "object_start_idx": 12,
+                "object_end_idx": 16
+            },
+            {
+                "Combined": false,
+                "predicate": "手术治疗",
+                "subject": "肥厚型心肌病",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "室间隔酒精消融"
+                },
+                "object_type": {
+                    "@value": "手术治疗"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 5,
+                "object_start_idx": 18,
+                "object_end_idx": 24
+            },
+            {
+                "Combined": false,
+                "predicate": "手术治疗",
+                "subject": "肥厚型心肌病",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "双腔起搏"
+                },
+                "object_type": {
+                    "@value": "手术治疗"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 5,
+                "object_start_idx": 26,
+                "object_end_idx": 29
+            },
+            {
+                "Combined": false,
+                "predicate": "手术治疗",
+                "subject": "HCM",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "心肌切除术"
+                },
+                "object_type": {
+                    "@value": "手术治疗"
+                },
+                "subject_start_idx": 214,
+                "subject_end_idx": 216,
+                "object_start_idx": 12,
+                "object_end_idx": 16
+            }
+        ],
+        "entities": [
+            {
+                "start_idx": 0,
+                "end_idx": 5,
+                "entity": "肥厚型心肌病",
+                "type": "疾病"
+            },
+            {
+                "start_idx": 12,
+                "end_idx": 16,
+                "entity": "心肌切除术",
+                "type": "手术治疗"
+            },
+            {
+                "start_idx": 18,
+                "end_idx": 24,
+                "entity": "室间隔酒精消融",
+                "type": "手术治疗"
+            },
+            {
+                "start_idx": 26,
+                "end_idx": 29,
+                "entity": "双腔起搏",
+                "type": "手术治疗"
+            },
+            {
+                "start_idx": 214,
+                "end_idx": 216,
+                "entity": "HCM",
+                "type": "疾病"
+            }
+        ]
+    },
+    {
+        "text": "脑炎@结果结果取决于病因；病毒（肠病毒，脊髓灰质炎病毒、虫媒病毒、HSV-1、HSV-2、VZV、CMV、EBV、淋巴细胞性脉络丛脑膜炎病毒、腺病毒、麻疹病毒、HIV、狂犬病病毒）；细菌（_肺炎支原体_、结核杆菌）；真菌（隐球菌、曲霉病）###需要考虑的检查###查看全部###尿液培养检查结果检查尿液病毒培养不是常规检测。脑炎@结果可检测脊髓灰质炎病毒、水痘带状疱疹病毒、腮腺炎病毒和麻疹病毒###粪便肠病毒培养检查结果检查如果儿童胃肠道症状先于脑炎出现，应更频繁地进行该项检测。",
+        "spo_list": [
+            {
+                "Combined": true,
+                "predicate": "实验室检查",
+                "subject": "脑炎",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "尿液培养"
+                },
+                "object_type": {
+                    "@value": "检查"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 1,
+                "object_start_idx": 141,
+                "object_end_idx": 144
+            },
+            {
+                "Combined": true,
+                "predicate": "实验室检查",
+                "subject": "脑炎",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "粪便肠病毒培养"
+                },
+                "object_type": {
+                    "@value": "检查"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 1,
+                "object_start_idx": 202,
+                "object_end_idx": 208
+            }
+        ],
+        "entities": [
+            {
+                "start_idx": 0,
+                "end_idx": 1,
+                "entity": "脑炎",
+                "type": "疾病"
+            },
+            {
+                "start_idx": 141,
+                "end_idx": 144,
+                "entity": "尿液培养",
+                "type": "检查"
+            },
+            {
+                "start_idx": 202,
+                "end_idx": 208,
+                "entity": "粪便肠病毒培养",
+                "type": "检查"
+            }
+        ]
+    },
+    {
         "text": "前列腺癌@外照射后，有两个常用的PSA生化复发的定义。前列腺癌@根治性前列腺切除术后的PSA生化复发并没有明确的定义，通常使用0.2和0.4微克/升(0.2到0.4ng/mL)之间的值。",
         "spo_list": [
             {
@@ -20139,6 +21840,63 @@
         ]
     },
     {
+        "text": "急性膀胱炎@附加–尿痛症状的缓解针对经选择患者组部分患者的治疗推荐####第一选择[非那吡啶](/druglink?dd=MARTINDALE)open_in_new:需要时，每次口服200mg，每日三次，共2日为缓解尿痛症状，可以在抗生素治疗时应用非那吡啶。",
+        "spo_list": [
+            {
+                "Combined": false,
+                "predicate": "药物治疗",
+                "subject": "急性膀胱炎",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "非那吡啶"
+                },
+                "object_type": {
+                    "@value": "药物"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 4,
+                "object_start_idx": 44,
+                "object_end_idx": 47
+            },
+            {
+                "Combined": false,
+                "predicate": "临床表现",
+                "subject": "急性膀胱炎",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "尿痛"
+                },
+                "object_type": {
+                    "@value": "症状"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 4,
+                "object_start_idx": 11,
+                "object_end_idx": 12
+            }
+        ],
+        "entities": [
+            {
+                "start_idx": 0,
+                "end_idx": 4,
+                "entity": "急性膀胱炎",
+                "type": "疾病"
+            },
+            {
+                "start_idx": 44,
+                "end_idx": 47,
+                "entity": "非那吡啶",
+                "type": "药物"
+            },
+            {
+                "start_idx": 11,
+                "end_idx": 12,
+                "entity": "尿痛",
+                "type": "症状"
+            }
+        ]
+    },
+    {
         "text": "失眠症@当在临床医生的指导下进行时，非药物干预是有益的。",
         "spo_list": [
             {
@@ -20445,6 +22203,41 @@
                 "end_idx": 44,
                 "entity": "良性滤泡性上皮肿瘤",
                 "type": "疾病"
+            }
+        ]
+    },
+    {
+        "text": "宫颈癌@已经表明，根治性子宫切除术后进行辅助放疗可增加治疗相关并发症的风险，并且不改善无疾病进展生存期或总生存期。宫颈癌@###非妊娠IIB-IVA期：局部晚期宫颈癌查看全部首选–放化疗####第一选择[顺铂](/druglink?dd=MARTINDALE)open_in_new和[放疗](/druglink?dd=MARTINDALE)open_in_new大多数研究证实，与放疗±羟基脲相比，顺铂±氟尿嘧啶联合放疗可以改善无进展生存期。",
+        "spo_list": [
+            {
+                "Combined": true,
+                "predicate": "药物治疗",
+                "subject": "宫颈癌",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "顺铂"
+                },
+                "object_type": {
+                    "@value": "药物"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 2,
+                "object_start_idx": 106,
+                "object_end_idx": 107
+            }
+        ],
+        "entities": [
+            {
+                "start_idx": 0,
+                "end_idx": 2,
+                "entity": "宫颈癌",
+                "type": "疾病"
+            },
+            {
+                "start_idx": 106,
+                "end_idx": 107,
+                "entity": "顺铂",
+                "type": "药物"
             }
         ]
     },
@@ -22473,6 +24266,41 @@
         ]
     },
     {
+        "text": "宫颈癌@##治疗流程请注意，同一药物不同名称的剂型和剂量可能不同：[参见免责声明](https://bestpractice.bmj.com/info/disclaimer/)急性###非妊娠女性IA1期病变：微小浸润性病变查看全部首选–局部切除±盆腔淋巴结清除术锥切术是诊断性切除术的首选方法，不过只要能达到足够的切缘、定位恰当以及获取非碎片样本，环形电切术(LEEP)也是可以接受的。",
+        "spo_list": [
+            {
+                "Combined": false,
+                "predicate": "手术治疗",
+                "subject": "宫颈癌",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "锥切术"
+                },
+                "object_type": {
+                    "@value": "手术治疗"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 2,
+                "object_start_idx": 136,
+                "object_end_idx": 138
+            }
+        ],
+        "entities": [
+            {
+                "start_idx": 0,
+                "end_idx": 2,
+                "entity": "宫颈癌",
+                "type": "疾病"
+            },
+            {
+                "start_idx": 136,
+                "end_idx": 138,
+                "entity": "锥切术",
+                "type": "手术治疗"
+            }
+        ]
+    },
+    {
         "text": "妊娠期高血压@###定义妊娠期高血压定义为：孕前血压正常，妊娠20周后，血压值持续≥140/90mmHg，尿蛋白阴性（24小时尿蛋白小于300mg）。",
         "spo_list": [
             {
@@ -23862,6 +25690,63 @@
                 "end_idx": 7,
                 "entity": "慢性阻塞性肺疾病",
                 "type": "疾病"
+            }
+        ]
+    },
+    {
+        "text": "白喉@##检查###首要检查###查看全部###细菌学培养和显微镜检查检查结果检查需要使用选择性培养基如亚碲酸血琼脂、加强型莱夫勒、霍伊尔、米勒或廷德尔培养基，所以需要提前准备及与微生物学家联络。",
+        "spo_list": [
+            {
+                "Combined": false,
+                "predicate": "实验室检查",
+                "subject": "白喉",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "细菌学培养"
+                },
+                "object_type": {
+                    "@value": "检查"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 1,
+                "object_start_idx": 26,
+                "object_end_idx": 30
+            },
+            {
+                "Combined": false,
+                "predicate": "实验室检查",
+                "subject": "白喉",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "显微镜检查"
+                },
+                "object_type": {
+                    "@value": "检查"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 1,
+                "object_start_idx": 32,
+                "object_end_idx": 36
+            }
+        ],
+        "entities": [
+            {
+                "start_idx": 0,
+                "end_idx": 1,
+                "entity": "白喉",
+                "type": "疾病"
+            },
+            {
+                "start_idx": 26,
+                "end_idx": 30,
+                "entity": "细菌学培养",
+                "type": "检查"
+            },
+            {
+                "start_idx": 32,
+                "end_idx": 36,
+                "entity": "显微镜检查",
+                "type": "检查"
             }
         ]
     },
@@ -26220,6 +28105,91 @@
         ]
     },
     {
+        "text": "稳定型缺血性心脏疾病@##检查###首要检查###查看全部###静息心电图检查结果检查静息心电图可用于明确基线心电图是否存在不宜行运动心电图或无创负荷试验的异常。稳定型缺血性心脏疾病@结果往往正常;然而，胸痛发作时作心电图可显示ST段压低，提示缺血###血红蛋白检查结果检查贫血增加心脏负荷，减少心脏供氧，加重心绞痛。",
+        "spo_list": [
+            {
+                "Combined": true,
+                "predicate": "影像学检查",
+                "subject": "稳定型缺血性心脏疾病",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "静息心电图"
+                },
+                "object_type": {
+                    "@value": "检查"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 9,
+                "object_start_idx": 34,
+                "object_end_idx": 38
+            },
+            {
+                "Combined": true,
+                "predicate": "相关（转化）",
+                "subject": "贫血",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "心绞痛"
+                },
+                "object_type": {
+                    "@value": "疾病"
+                },
+                "subject_start_idx": 139,
+                "subject_end_idx": 140,
+                "object_start_idx": 157,
+                "object_end_idx": 159
+            },
+            {
+                "Combined": true,
+                "predicate": "实验室检查",
+                "subject": "稳定型缺血性心脏疾病",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "血红蛋白"
+                },
+                "object_type": {
+                    "@value": "检查"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 9,
+                "object_start_idx": 129,
+                "object_end_idx": 132
+            }
+        ],
+        "entities": [
+            {
+                "start_idx": 0,
+                "end_idx": 9,
+                "entity": "稳定型缺血性心脏疾病",
+                "type": "疾病"
+            },
+            {
+                "start_idx": 34,
+                "end_idx": 38,
+                "entity": "静息心电图",
+                "type": "检查"
+            },
+            {
+                "start_idx": 139,
+                "end_idx": 140,
+                "entity": "贫血",
+                "type": "疾病"
+            },
+            {
+                "start_idx": 157,
+                "end_idx": 159,
+                "entity": "心绞痛",
+                "type": "疾病"
+            },
+            {
+                "start_idx": 129,
+                "end_idx": 132,
+                "entity": "血红蛋白",
+                "type": "检查"
+            }
+        ]
+    },
+    {
         "text": "期前收缩@室性期前收缩可起源于心室的任何部位，特征为提前出现的、增宽的、畸变的QRS波群，其前无P波。期前收缩@如室性期前收缩的形态一致，则称之为单源性室性期前收缩。",
         "spo_list": [
             {
@@ -26352,6 +28322,114 @@
                 "end_idx": 36,
                 "entity": "疣状结节或斑块",
                 "type": "症状"
+            }
+        ]
+    },
+    {
+        "text": "百日咳@###其他诊断因素###常见查看全部###打喷嚏在疾病早期（感染后1-2周）患者都会出现打喷嚏。",
+        "spo_list": [
+            {
+                "Combined": false,
+                "predicate": "临床表现",
+                "subject": "百日咳",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "打喷嚏"
+                },
+                "object_type": {
+                    "@value": "症状"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 2,
+                "object_start_idx": 27,
+                "object_end_idx": 29
+            }
+        ],
+        "entities": [
+            {
+                "start_idx": 0,
+                "end_idx": 2,
+                "entity": "百日咳",
+                "type": "疾病"
+            },
+            {
+                "start_idx": 27,
+                "end_idx": 29,
+                "entity": "打喷嚏",
+                "type": "症状"
+            }
+        ]
+    },
+    {
+        "text": "妊娠期高血压@###弱查看全部###黑人或拉丁美裔黑人妇女比白人妇女发病风险更高。",
+        "spo_list": [
+            {
+                "Combined": false,
+                "predicate": "多发群体",
+                "subject": "妊娠期高血压",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "黑人妇女"
+                },
+                "object_type": {
+                    "@value": "流行病学"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 5,
+                "object_start_idx": 27,
+                "object_end_idx": 30
+            },
+            {
+                "Combined": false,
+                "predicate": "多发群体",
+                "subject": "妊娠期高血压",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "黑人或拉丁美裔"
+                },
+                "object_type": {
+                    "@value": "流行病学"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 5,
+                "object_start_idx": 20,
+                "object_end_idx": 26
+            },
+            {
+                "Combined": false,
+                "predicate": "高危因素",
+                "subject": "妊娠期高血压",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "黑人或拉丁美裔"
+                },
+                "object_type": {
+                    "@value": "社会学"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 5,
+                "object_start_idx": 20,
+                "object_end_idx": 26
+            }
+        ],
+        "entities": [
+            {
+                "start_idx": 0,
+                "end_idx": 5,
+                "entity": "妊娠期高血压",
+                "type": "疾病"
+            },
+            {
+                "start_idx": 27,
+                "end_idx": 30,
+                "entity": "黑人妇女",
+                "type": "流行病学"
+            },
+            {
+                "start_idx": 20,
+                "end_idx": 26,
+                "entity": "黑人或拉丁美裔",
+                "type": "社会学"
             }
         ]
     },
@@ -27901,6 +29979,85 @@
         ]
     },
     {
+        "text": "登革热@结果阳性###非结构蛋白1检测（NS1）检查结果检查用ELISA和快速诊断试剂盒对NS1进行检测对早期诊断很有用，并且可用于疾病的第1到9天。登革热@结果阳性###需要考虑的检查###查看全部###凝血检查检查结果检查对诊断非必需，但对有出血迹象患者的治疗有用。",
+        "spo_list": [
+            {
+                "Combined": true,
+                "predicate": "实验室检查",
+                "subject": "登革热",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "ELISA"
+                },
+                "object_type": {
+                    "@value": "检查"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 2,
+                "object_start_idx": 31,
+                "object_end_idx": 35
+            },
+            {
+                "Combined": true,
+                "predicate": "实验室检查",
+                "subject": "登革热",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "凝血检查"
+                },
+                "object_type": {
+                    "@value": "检查"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 2,
+                "object_start_idx": 105,
+                "object_end_idx": 108
+            },
+            {
+                "Combined": true,
+                "predicate": "实验室检查",
+                "subject": "登革热",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "非结构蛋白1检测（NS1）"
+                },
+                "object_type": {
+                    "@value": "检查"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 2,
+                "object_start_idx": 11,
+                "object_end_idx": 23
+            }
+        ],
+        "entities": [
+            {
+                "start_idx": 0,
+                "end_idx": 2,
+                "entity": "登革热",
+                "type": "疾病"
+            },
+            {
+                "start_idx": 31,
+                "end_idx": 35,
+                "entity": "ELISA",
+                "type": "检查"
+            },
+            {
+                "start_idx": 105,
+                "end_idx": 108,
+                "entity": "凝血检查",
+                "type": "检查"
+            },
+            {
+                "start_idx": 11,
+                "end_idx": 23,
+                "entity": "非结构蛋白1检测（NS1）",
+                "type": "检查"
+            }
+        ]
+    },
+    {
         "text": "慢性肾病@黑种人、西班牙人以及家族成员中有确诊肾脏疾病的个体，相较于一般人群发病率更高。",
         "spo_list": [
             {
@@ -28015,6 +30172,76 @@
         ]
     },
     {
+        "text": "小儿哮喘@步骤6（持续）–附加–噻托溴铵针对经选择患者组部分患者的治疗推荐####第一选择[吸入噻托溴铵](/druglink?dd=MARTINDALE)open_in_new:（1.25或2.5μg/剂的吸入喷雾）2.5μg，每日一次对于使用吸入皮质类固醇加长效β-2受体激动剂的≥12周岁的患者，建议使用长效抗毒蕈碱剂作为辅助治疗。",
+        "spo_list": [
+            {
+                "Combined": false,
+                "predicate": "药物治疗",
+                "subject": "小儿哮喘",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "吸入噻托溴铵"
+                },
+                "object_type": {
+                    "@value": "药物"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 3,
+                "object_start_idx": 48,
+                "object_end_idx": 53
+            }
+        ],
+        "entities": [
+            {
+                "start_idx": 0,
+                "end_idx": 3,
+                "entity": "小儿哮喘",
+                "type": "疾病"
+            },
+            {
+                "start_idx": 48,
+                "end_idx": 53,
+                "entity": "吸入噻托溴铵",
+                "type": "药物"
+            }
+        ]
+    },
+    {
+        "text": "前列腺癌@＜10年预期生存期–附加–近距离加强放疗针对经选择患者组部分患者的治疗推荐高容量中等风险前列腺癌的患者，如果担心外照射放疗实现局部控制的效果，，也可以选择接受近距离加强放疗，利用低剂量率或高剂量率方案。前列腺癌@≥10年预期生存期–首选–期待疗法中等风险患者定义为至少包括以下条件之一：T2b/T2c期，PSA10~20微克/升(10~20纳克/卫生)，或者Gleason评分7分。",
+        "spo_list": [
+            {
+                "Combined": true,
+                "predicate": "辅助治疗",
+                "subject": "前列腺癌",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "期待疗法"
+                },
+                "object_type": {
+                    "@value": "其他治疗"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 3,
+                "object_start_idx": 128,
+                "object_end_idx": 131
+            }
+        ],
+        "entities": [
+            {
+                "start_idx": 0,
+                "end_idx": 3,
+                "entity": "前列腺癌",
+                "type": "疾病"
+            },
+            {
+                "start_idx": 128,
+                "end_idx": 131,
+                "entity": "期待疗法",
+                "type": "其他治疗"
+            }
+        ]
+    },
+    {
         "text": "子宫内膜癌@药物治疗包括阴道局部用雌激素及经皮雄激素。",
         "spo_list": [
             {
@@ -28067,6 +30294,41 @@
                 "start_idx": 21,
                 "end_idx": 25,
                 "entity": "经皮雄激素",
+                "type": "药物"
+            }
+        ]
+    },
+    {
+        "text": "血吸虫病@疾病持续状态###慢性血吸虫病（在暴露后数年发生肉芽肿和纤维素样变性疾病）查看全部埃及血吸虫，曼氏血吸虫，或间插血吸虫感染；非妊娠首选–吡喹酮（2次/d剂量）####第一选择[吡喹酮](/druglink?dd=MARTINDALE)open_in_new:大于4岁的儿童和成人：20mg/kg口服2次/d，共1天；或20mg/kg口服3次/d，共1天。",
+        "spo_list": [
+            {
+                "Combined": false,
+                "predicate": "药物治疗",
+                "subject": "慢性血吸虫病",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "吡喹酮"
+                },
+                "object_type": {
+                    "@value": "药物"
+                },
+                "subject_start_idx": 14,
+                "subject_end_idx": 19,
+                "object_start_idx": 77,
+                "object_end_idx": 79
+            }
+        ],
+        "entities": [
+            {
+                "start_idx": 14,
+                "end_idx": 19,
+                "entity": "慢性血吸虫病",
+                "type": "疾病"
+            },
+            {
+                "start_idx": 77,
+                "end_idx": 79,
+                "entity": "吡喹酮",
                 "type": "药物"
             }
         ]
@@ -28823,6 +31085,107 @@
                 "end_idx": 54,
                 "entity": "切断感染源",
                 "type": "其他"
+            }
+        ]
+    },
+    {
+        "text": "中耳炎@##病史和查体###关键诊断因素###常见查看全部###存在的危险因素关键因素包括男性、年龄小、可能暴露于呼吸道病毒环境（如托管于日间托儿所、接触哥哥姐姐）、阳性家族史及美洲土著人或阿拉斯加土著人。",
+        "spo_list": [
+            {
+                "Combined": false,
+                "predicate": "高危因素",
+                "subject": "中耳炎",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "男性"
+                },
+                "object_type": {
+                    "@value": "社会学"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 2,
+                "object_start_idx": 47,
+                "object_end_idx": 48
+            },
+            {
+                "Combined": false,
+                "predicate": "高危因素",
+                "subject": "中耳炎",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "年龄小"
+                },
+                "object_type": {
+                    "@value": "社会学"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 2,
+                "object_start_idx": 50,
+                "object_end_idx": 52
+            },
+            {
+                "Combined": false,
+                "predicate": "高危因素",
+                "subject": "中耳炎",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "暴露于呼吸道病毒环境"
+                },
+                "object_type": {
+                    "@value": "社会学"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 2,
+                "object_start_idx": 56,
+                "object_end_idx": 65
+            },
+            {
+                "Combined": false,
+                "predicate": "高危因素",
+                "subject": "中耳炎",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "阳性家族史"
+                },
+                "object_type": {
+                    "@value": "社会学"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 2,
+                "object_start_idx": 85,
+                "object_end_idx": 89
+            }
+        ],
+        "entities": [
+            {
+                "start_idx": 0,
+                "end_idx": 2,
+                "entity": "中耳炎",
+                "type": "疾病"
+            },
+            {
+                "start_idx": 47,
+                "end_idx": 48,
+                "entity": "男性",
+                "type": "社会学"
+            },
+            {
+                "start_idx": 50,
+                "end_idx": 52,
+                "entity": "年龄小",
+                "type": "社会学"
+            },
+            {
+                "start_idx": 56,
+                "end_idx": 65,
+                "entity": "暴露于呼吸道病毒环境",
+                "type": "社会学"
+            },
+            {
+                "start_idx": 85,
+                "end_idx": 89,
+                "entity": "阳性家族史",
+                "type": "社会学"
             }
         ]
     },
@@ -32316,6 +34679,63 @@
         ]
     },
     {
+        "text": "狂犬病@急性###有症状的狂犬病查看全部首选–姑息治疗####第一选择[氟哌啶醇](/druglink?dd=MARTINDALE)open_in_new:初始0.5-10mg，每1~4小时一次，口服，根据反应情况调整剂量，最大剂量为100mg/日偶有报道狂犬病幸存者，但目前仍无公认有效的治疗方案。",
+        "spo_list": [
+            {
+                "Combined": false,
+                "predicate": "辅助治疗",
+                "subject": "狂犬病",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "姑息治疗"
+                },
+                "object_type": {
+                    "@value": "其他治疗"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 2,
+                "object_start_idx": 27,
+                "object_end_idx": 30
+            },
+            {
+                "Combined": false,
+                "predicate": "药物治疗",
+                "subject": "狂犬病",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "氟哌啶醇"
+                },
+                "object_type": {
+                    "@value": "药物"
+                },
+                "subject_start_idx": 0,
+                "subject_end_idx": 2,
+                "object_start_idx": 40,
+                "object_end_idx": 43
+            }
+        ],
+        "entities": [
+            {
+                "start_idx": 0,
+                "end_idx": 2,
+                "entity": "狂犬病",
+                "type": "疾病"
+            },
+            {
+                "start_idx": 27,
+                "end_idx": 30,
+                "entity": "姑息治疗",
+                "type": "其他治疗"
+            },
+            {
+                "start_idx": 40,
+                "end_idx": 43,
+                "entity": "氟哌啶醇",
+                "type": "药物"
+            }
+        ]
+    },
+    {
         "text": "病毒性心肌炎(viralmyocarditis)是由病毒感染引起的心肌间质炎症细胞浸润和邻近的心肌细胞坏死、变性,有时病变也可累及心包或心内膜。X线检査显示心影增大，但无特异性。",
         "spo_list": [
             {
@@ -33411,6 +35831,41 @@
                 "end_idx": 118,
                 "entity": "呋喃唑酮",
                 "type": "药物"
+            }
+        ]
+    },
+    {
+        "text": "病毒性脑膜炎@结果不显著；可能会排除脓肿或细菌性脑膜炎###需要考虑的检查###查看全部###EEG检查结果检查脑炎患者的脑电图常有异常，也可能显示癫痫活动。",
+        "spo_list": [
+            {
+                "Combined": false,
+                "predicate": "影像学检查",
+                "subject": "脑炎",
+                "subject_type": "疾病",
+                "object": {
+                    "@value": "脑电图"
+                },
+                "object_type": {
+                    "@value": "检查"
+                },
+                "subject_start_idx": 58,
+                "subject_end_idx": 59,
+                "object_start_idx": 63,
+                "object_end_idx": 65
+            }
+        ],
+        "entities": [
+            {
+                "start_idx": 58,
+                "end_idx": 59,
+                "entity": "脑炎",
+                "type": "疾病"
+            },
+            {
+                "start_idx": 63,
+                "end_idx": 65,
+                "entity": "脑电图",
+                "type": "检查"
             }
         ]
     },
