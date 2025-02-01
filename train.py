@@ -873,7 +873,10 @@ def plot_training_curves(metrics_history: Dict[str, List[float]], config: Dict[s
     if not config['output']['plot_metrics']['enabled']:
         return
         
-    plt.style.use('seaborn')
+    # 使用 matplotlib 自带的样式
+    plt.style.use('bmh')  # 使用 bmh 样式，它提供了一个清晰的网格和柔和的颜色
+    
+    # 使用固定的配置值
     metrics_to_plot = ['loss', 'f1', 'precision', 'recall']
     figsize = (12, 8)
     dpi = 300
