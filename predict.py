@@ -60,8 +60,8 @@ def load_model(model_path, device='cuda' if torch.cuda.is_available() else 'cpu'
     
     # 创建模型实例
     model = ModernBertForRelationExtraction(config)
-    logger.info("模型实例创建完成，检查初始权重...")
-    check_model_weights(model, "初始化后")
+    # logger.info("模型实例创建完成，检查初始权重...")
+    # check_model_weights(model, "初始化后")
     
     # 加载模型权重
     if os.path.isdir(model_path):
@@ -102,7 +102,22 @@ def load_model(model_path, device='cuda' if torch.cuda.is_available() else 'cpu'
     check_model_weights(model, "加载权重后")
     
     # 加载分词器
-    tokenizer = AutoTokenizer.from_pretrained(model_path)
+    tokenizer = AutoTokenizer.from_pretrained(
+        model_path,
+        model_max_length=config.max_position_embeddings,
+        use_fast=True,
+        do_lower_case=False,
+        strip_accents=False,
+        tokenize_chinese_chars=True,
+        encoding='utf-8'
+    )
+    
+    # 输出分词器配置信息
+    logger.debug("\n分词器配置信息:")
+    logger.debug(f"词表大小: {len(tokenizer)}")
+    logger.debug(f"分词器类型: {type(tokenizer).__name__}")
+    logger.debug(f"特殊token: {tokenizer.all_special_tokens}")
+    logger.debug(f"词表示例(前10个): {list(tokenizer.get_vocab().items())[:10]}")
     
     model = model.to(device)
     model.eval()
@@ -120,16 +135,17 @@ def predict(text, model, tokenizer, device, max_length=512):
         padding=True,
         truncation=True,
         return_offsets_mapping=True,
-        return_tensors="pt"
+        return_tensors="pt",
+        add_special_tokens=True
     )
     
-    # 添加分词调试日志
-    logger.debug("\nToken 和标签对应关系:")
+    # 添加调试信息
+    logger.debug("\n分词结果:")
     for i, (token_id, offset) in enumerate(zip(inputs["input_ids"][0], inputs["offset_mapping"][0])):
-        token = tokenizer.decode([token_id.item()])
+        token = tokenizer.convert_ids_to_tokens([token_id.item()])[0]
         start, end = offset.numpy()
-        token_text = text[start:end] if start < end else ""
-        logger.debug(f"位置 {i}: Token='{token}' (原文='{token_text}', 长度={len(token)})")
+        text_span = text[start:end] if start < end else f"[{token}]"
+        logger.debug(f"位置 {i}: Token='{token}' (ID={token_id.item()}, 原文='{text_span}', 范围={start}:{end})")
     
     input_ids = inputs["input_ids"].to(device)
     attention_mask = inputs["attention_mask"].to(device)
