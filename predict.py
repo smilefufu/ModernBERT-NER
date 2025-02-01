@@ -118,7 +118,15 @@ def load_model(model_path, device='cuda' if torch.cuda.is_available() else 'cpu'
     logger.debug(f"分词器类型: {type(tokenizer).__name__}")
     logger.debug(f"特殊token: {tokenizer.all_special_tokens}")
     logger.debug(f"特殊token IDs: {tokenizer.all_special_ids}")
-    logger.debug(f"词表示例(前10个中文token): {[token for token, id in list(tokenizer.get_vocab().items())[:1000] if '\u4e00' <= token <= '\u9fff'][:10]}")
+    
+    # 获取中文token示例
+    chinese_tokens = []
+    for token, _ in list(tokenizer.get_vocab().items())[:1000]:
+        if '\u4e00' <= token <= '\u9fff':
+            chinese_tokens.append(token)
+        if len(chinese_tokens) >= 10:
+            break
+    logger.debug(f"词表示例(前10个中文token): {chinese_tokens}")
     
     model = model.to(device)
     model.eval()
@@ -243,8 +251,8 @@ def extract_entities_and_relations(outputs, text, tokenizer, offset_mapping, inp
 
 if __name__ == '__main__':
     # 示例用法
-    model_path = '/Users/fufu/codes/playgruond/test-modernbert/workplace/outputs/model_epoch_1_f1_0.2377'  # 修改为你的模型路径
-    text = "在2型糖尿病的治疗中，二甲双胍可以有效降低血糖水平。"  # 修改为你要分析的文本
+    model_path = './outputs/model_epoch_6_f1_0.2514'  # 修改为你的模型路径
+    text = "休克中晚期：面色苍白、四肢厥冷、脉搏细弱、尿量减少，有严重缺氧和循环衰竭表现，如呼吸急促、唇周发绀、烦躁不安、意识障碍、动脉血氧分压降低、血氧饱和度下降、代谢性酸中毒；心率增快、四肢及皮肤湿冷、出现花纹，血压降低，收缩压可低于40mmHg以下，尿量减少或无尿，晚期可有DIC表现"  # 修改为你要分析的文本
     
     # 加载模型
     model, tokenizer, device = load_model(model_path, "mps")
