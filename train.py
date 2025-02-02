@@ -85,13 +85,13 @@ def get_optimizer(model, config):
             'params': [p for n, p in model.named_parameters() 
                       if 'embeddings' in n and not any(nd in n for nd in no_decay)],
             'weight_decay': config['training']['weight_decay'],
-            'lr': base_lr * 0.5  # embedding层使用较小的学习率
+            'lr': base_lr * 0.1  # embedding层使用很小的学习率
         },
         {
             'params': [p for n, p in model.named_parameters() 
                       if 'embeddings' in n and any(nd in n for nd in no_decay)],
             'weight_decay': 0.0,
-            'lr': base_lr * 0.5
+            'lr': base_lr * 0.1
         },
         # ModernBERT encoder浅层(0-3)
         {
@@ -99,14 +99,14 @@ def get_optimizer(model, config):
                       if 'encoder.layer' in n and int(n.split('.')[3]) < 4 
                       and not any(nd in n for nd in no_decay)],
             'weight_decay': config['training']['weight_decay'],
-            'lr': base_lr * 0.75  # 浅层使用较小的学习率
+            'lr': base_lr * 0.3  # 浅层使用较小的学习率
         },
         {
             'params': [p for n, p in model.named_parameters() 
                       if 'encoder.layer' in n and int(n.split('.')[3]) < 4 
                       and any(nd in n for nd in no_decay)],
             'weight_decay': 0.0,
-            'lr': base_lr * 0.75
+            'lr': base_lr * 0.3
         },
         # ModernBERT encoder深层(4+)
         {
@@ -114,14 +114,14 @@ def get_optimizer(model, config):
                       if 'encoder.layer' in n and int(n.split('.')[3]) >= 4 
                       and not any(nd in n for nd in no_decay)],
             'weight_decay': config['training']['weight_decay'],
-            'lr': base_lr  # 深层使用基准学习率
+            'lr': base_lr * 0.5  # 深层使用较小的基准学习率
         },
         {
             'params': [p for n, p in model.named_parameters() 
                       if 'encoder.layer' in n and int(n.split('.')[3]) >= 4 
                       and any(nd in n for nd in no_decay)],
             'weight_decay': 0.0,
-            'lr': base_lr
+            'lr': base_lr * 0.5
         },
         # NER和实体类型分类头
         {
@@ -129,27 +129,27 @@ def get_optimizer(model, config):
                       if ('ner_head' in n or 'entity_type_head' in n) 
                       and not any(nd in n for nd in no_decay)],
             'weight_decay': config['training']['weight_decay'],
-            'lr': base_lr * 2.0  # 分类头使用较大的学习率
+            'lr': base_lr  # 分类头使用基准学习率
         },
         {
             'params': [p for n, p in model.named_parameters() 
                       if ('ner_head' in n or 'entity_type_head' in n) 
                       and any(nd in n for nd in no_decay)],
             'weight_decay': 0.0,
-            'lr': base_lr * 2.0
+            'lr': base_lr
         },
         # 关系分类头
         {
             'params': [p for n, p in model.named_parameters() 
                       if 'relation_head' in n and not any(nd in n for nd in no_decay)],
             'weight_decay': config['training']['weight_decay'],
-            'lr': base_lr * 1.5  # 关系分类头使用适中的学习率
+            'lr': base_lr  # 关系分类头使用基准学习率
         },
         {
             'params': [p for n, p in model.named_parameters() 
                       if 'relation_head' in n and any(nd in n for nd in no_decay)],
             'weight_decay': 0.0,
-            'lr': base_lr * 1.5
+            'lr': base_lr
         }
     ]
     
@@ -537,30 +537,50 @@ def initialize_training(config, device):
     optimizer = get_optimizer(model, config)
     
     # 学习率调度器
+    scheduler_config = config['training']['scheduler']
     total_steps = len(load_data(config, tokenizer)[0]) * config['training']['num_train_epochs']
-    warmup_steps = int(total_steps * config['training']['warmup_ratio'])
+    warmup_steps = int(total_steps * config['training']['warmup_ratio'])  # 使用预热比例计算预热步数
     
-    def lr_lambda(current_step):
+    def get_lr_multiplier(step):
+        """获取学习率乘数"""
+        logger.debug(f"计算学习率乘数 - step: {step}, warmup_steps: {warmup_steps}, total_steps: {total_steps}")
         # 预热阶段
-        if current_step < warmup_steps:
-            return float(current_step) / float(max(1, warmup_steps))
-        # 余弦衰减阶段
-        progress = float(current_step - warmup_steps) / float(max(1, total_steps - warmup_steps))
-        return max(0.0, 0.5 * (1.0 + math.cos(math.pi * progress)))
+        if step < warmup_steps:
+            multiplier = float(step) / float(max(1, warmup_steps))
+        else:
+            # 线性衰减阶段
+            multiplier = max(0.0, float(total_steps - step) / float(max(1, total_steps - warmup_steps)))
+        logger.debug(f"学习率乘数: {multiplier}, 类型: {type(multiplier)}")
+        return multiplier
     
-    scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
+    if scheduler_config['type'] == 'linear':
+        scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, get_lr_multiplier)
+    else:
+        raise ValueError(f"不支持的学习率调度器类型: {scheduler_config['type']}")
     
     logger.info("\n学习率调度器配置:")
+    logger.info(f"类型: {scheduler_config['type']}")
     logger.info(f"总训练步数: {total_steps}")
     logger.info(f"预热步数: {warmup_steps}")
     logger.info(f"预热比例: {config['training']['warmup_ratio']}")
     
     # 记录学习率曲线
-    steps = list(range(total_steps))
-    lrs = [lr_lambda(step) * config['training']['learning_rate'] for step in steps]
+    base_lr = float(config['training']['learning_rate'])  # 确保是浮点数
+    sample_steps = list(range(0, total_steps, total_steps//10))
     logger.info("\n学习率曲线采样:")
-    for i, step in enumerate(range(0, total_steps, total_steps//10)):
-        logger.info(f"Step {step}: {lrs[step]:.2e}")
+    logger.debug(f"基础学习率: {base_lr}, 类型: {type(base_lr)}")
+    
+    for step in sample_steps:
+        try:
+            multiplier = get_lr_multiplier(step)
+            logger.debug(f"Step {step} - 乘数: {multiplier}, 类型: {type(multiplier)}")
+            lr = base_lr * multiplier
+            logger.info(f"Step {step}: {lr:.2e}")
+        except Exception as e:
+            logger.error(f"计算学习率时出错 - step: {step}")
+            logger.error(f"错误类型: {type(e)}")
+            logger.error(f"错误信息: {str(e)}")
+            raise
     
     return model, tokenizer, optimizer, scheduler
 
@@ -615,6 +635,9 @@ def train_epoch(model, train_loader, optimizer, scheduler, device, epoch, config
     total_re_loss = 0
     num_batches = len(train_loader)
     
+    # 获取梯度累积步数
+    gradient_accumulation_steps = config['training'].get('gradient_accumulation_steps', 4)
+    
     # 如果使用加权损失，计算类别权重
     class_weights = None
     if config['training'].get('use_weighted_loss', False) and epoch == 0:
@@ -632,50 +655,62 @@ def train_epoch(model, train_loader, optimizer, scheduler, device, epoch, config
     # 记录每个batch的指标
     batch_metrics = defaultdict(list)
     
+    # 用于梯度累积的损失
+    accumulated_loss = 0
+    
     for batch_idx, batch in enumerate(progress_bar):
         # 将数据移动到设备上
         batch = {k: v.to(device) for k, v in batch.items()}
-        
-        # 清零梯度
-        optimizer.zero_grad()
         
         # 前向传播
         outputs = model(**batch)
         loss = outputs.loss
         
         if loss is not None:
+            # 缩放损失以适应梯度累积
+            loss = loss / gradient_accumulation_steps
+            
             # 反向传播
             loss.backward()
             
-            # 计算梯度范数
-            grad_norm = torch.norm(torch.stack([torch.norm(p.grad.detach(), 2) for p in model.parameters() if p.grad is not None]), 2)
-            batch_metrics['grad_norm'].append(grad_norm.item())
+            # 累积损失
+            accumulated_loss += loss.item() * gradient_accumulation_steps
             
-            # 如果梯度过大，记录日志
-            if grad_norm > max_grad_norm:
-                logger.warning(f"Epoch {epoch} Batch {batch_idx}: 梯度范数 {grad_norm:.4f} 超过阈值 {max_grad_norm}")
-            
-            # 梯度裁剪
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
-            
-            # 更新参数
-            optimizer.step()
-            
-            # 更新学习率
-            if scheduler is not None:
-                scheduler.step()
-                batch_metrics['learning_rate'].append(scheduler.get_last_lr()[0])
-            
-            # 记录损失
-            total_loss += loss.item()
-            batch_metrics['loss'].append(loss.item())
-            
-            # 更新进度条
-            progress_bar.set_postfix({
-                'loss': f"{loss.item():.4f}",
-                'grad': f"{grad_norm:.2f}",
-                'lr': f"{scheduler.get_last_lr()[0]:.2e}" if scheduler else "N/A"
-            })
+            # 如果达到累积步数或是最后一个batch
+            if (batch_idx + 1) % gradient_accumulation_steps == 0 or batch_idx == len(train_loader) - 1:
+                # 计算梯度范数
+                grad_norm = torch.norm(torch.stack([torch.norm(p.grad.detach(), 2) for p in model.parameters() if p.grad is not None]), 2)
+                batch_metrics['grad_norm'].append(grad_norm.item())
+                
+                # 如果梯度过大，记录日志
+                if grad_norm > max_grad_norm:
+                    logger.warning(f"Epoch {epoch} Batch {batch_idx}: 梯度范数 {grad_norm:.4f} 超过阈值 {max_grad_norm}")
+                
+                # 梯度裁剪
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
+                
+                # 更新参数
+                optimizer.step()
+                
+                # 更新学习率
+                if scheduler is not None:
+                    scheduler.step()
+                    batch_metrics['learning_rate'].append(scheduler.get_last_lr()[0])
+                
+                # 清零梯度
+                optimizer.zero_grad()
+                
+                # 记录累积的损失
+                total_loss += accumulated_loss
+                batch_metrics['loss'].append(accumulated_loss)
+                accumulated_loss = 0
+                
+                # 更新进度条
+                progress_bar.set_postfix({
+                    'loss': f"{loss.item() * gradient_accumulation_steps:.4f}",
+                    'grad': f"{grad_norm:.2f}",
+                    'lr': f"{scheduler.get_last_lr()[0]:.2e}" if scheduler else "N/A"
+                })
             
             # 每100个batch记录一次详细信息
             if (batch_idx + 1) % 100 == 0:
@@ -688,7 +723,7 @@ def train_epoch(model, train_loader, optimizer, scheduler, device, epoch, config
                 )
     
     # 计算平均损失
-    avg_loss = total_loss / num_batches
+    avg_loss = total_loss / (num_batches // gradient_accumulation_steps)
     
     # 记录epoch结束时的指标
     logger.info(

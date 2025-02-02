@@ -8,26 +8,32 @@ model:
 
 # 训练配置
 training:
-  # 批次大小
+  # 基础训练参数
   batch_size: 2
   eval_batch_size: 2
+  num_train_epochs: 10
+  gradient_accumulation_steps: 16  # 增加梯度累积步数，相当于 batch_size=32
   
   # 优化器参数
-  weight_decay: 0.01    # 权重衰减系数
-  max_grad_norm: 10.0   # 梯度裁剪阈值
+  learning_rate: 5e-6  # 降低学习率
+  weight_decay: 0.01
+  max_grad_norm: 10.0  # 保持梯度裁剪阈值
+  warmup_ratio: 0.2  # 增加预热比例
   
   # 学习率调度
-  learning_rate: 5.0e-5  # 调整为建议的基准学习率
-  warmup_ratio: 0.1     # 预热比例，10%步数用于预热
+  scheduler:
+    type: linear
+    warmup_steps: 1000  # 预热步数
+    num_training_steps: 35860  # 3586 * 10 epochs
   
-  # 训练控制
-  num_train_epochs: 50
-  logging_steps: 10
-  use_weighted_loss: true
+  # 损失函数配置
+  use_weighted_loss: true  # 使用静态类别权重
+  
+  # 其他配置
+  logging_steps: 100
   eval_ratio: 0.1
   random_seed: 42
   freeze_backbone: false
-  gradient_accumulation_steps: 1
 
 # 数据配置
 data:

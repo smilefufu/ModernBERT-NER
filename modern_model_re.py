@@ -31,13 +31,6 @@ class ModernBertForRelationExtraction(ModernBertPreTrainedModel):
         self.num_labels = self.num_entity_types * 2 + 1
         self.num_relations = config.num_relations if hasattr(config, "num_relations") else 53
         
-        # 初始化类别计数器
-        self.ner_label_counts = torch.zeros(self.num_labels)
-        self.relation_counts = torch.zeros(self.num_relations)
-        
-        # 是否使用自适应权重
-        self.use_adaptive_weights = config.use_adaptive_weights if hasattr(config, "use_adaptive_weights") else True
-        
         # 加载类别权重(如果配置中提供)
         self.ner_weights = torch.tensor(config.ner_weights) if hasattr(config, "ner_weights") else None
         self.relation_weights = torch.tensor(config.relation_weights) if hasattr(config, "relation_weights") else None
@@ -55,8 +48,23 @@ class ModernBertForRelationExtraction(ModernBertPreTrainedModel):
         self.relation_layer_norm = nn.LayerNorm(config.hidden_size * 4)  # 实体表示 + 类型表示
         self.relation_head = nn.Linear(config.hidden_size * 4, self.num_relations)
         
-        # 初始化权重
-        self.init_weights()
+        # 使用较小的初始化范围初始化分类头
+        def init_weights(module, std=0.02):
+            if isinstance(module, nn.Linear):
+                module.weight.data.normal_(mean=0.0, std=std)
+                if module.bias is not None:
+                    module.bias.data.zero_()
+        
+        # 对分类头使用较小的初始化范围
+        init_weights(self.ner_head, std=0.01)
+        init_weights(self.relation_head, std=0.01)
+        
+        # 初始化LayerNorm
+        self.relation_layer_norm.weight.data.fill_(1.0)
+        self.relation_layer_norm.bias.data.zero_()
+        
+        # 初始化实体类型嵌入
+        self.entity_type_embeddings.weight.data.normal_(mean=0.0, std=0.02)
         
     def init_weights(self):
         """初始化权重"""
@@ -205,19 +213,25 @@ class ModernBertForRelationExtraction(ModernBertPreTrainedModel):
             
             # 关系分类损失
             relation_loss_fct = CrossEntropyLoss(
-                weight=self.relation_weights.to(relations.device) if self.relation_weights is not None else None
+                weight=self.relation_weights.to(relations.device) if self.relation_weights is not None else None,
+                ignore_index=-100  # 忽略填充的关系
             )
-            relation_loss = relation_loss_fct(
-                relation_logits.view(-1, self.num_relations),
-                relations.view(-1)
-            )
+            
+            # 只计算非填充关系的损失
+            active_relations = relations.view(-1) != -100  # 假设-100是填充值
+            active_relation_logits = relation_logits.view(-1, self.num_relations)[active_relations]
+            active_relation_labels = relations.view(-1)[active_relations]
+            
+            if active_relations.any():
+                relation_loss = relation_loss_fct(
+                    active_relation_logits,
+                    active_relation_labels
+                )
+            else:
+                relation_loss = torch.tensor(0.0, device=relations.device)
             
             # 总损失
             total_loss = ner_loss + relation_loss
-            
-            # 更新类别权重（如果启用）
-            if self.use_adaptive_weights and self.training:
-                self._update_weights()
         
         if not return_dict:
             output = (ner_logits, relation_logits) + outputs[2:]
@@ -230,15 +244,6 @@ class ModernBertForRelationExtraction(ModernBertPreTrainedModel):
             hidden_states=outputs.hidden_states,
             attentions=outputs.attentions,
         )
-
-    def _update_weights(self):
-        # 计算自适应权重
-        eps = 1e-8  # 防止除零
-        self.ner_weights = 1.0 / (self.ner_label_counts + eps)
-        self.ner_weights = self.ner_weights / self.ner_weights.sum() * self.num_labels  # 归一化
-        
-        self.relation_weights = 1.0 / (self.relation_counts + eps)
-        self.relation_weights = self.relation_weights / self.relation_weights.sum() * self.num_relations
 
 class RelationExtractionOutput:
     def __init__(self, loss, ner_logits, relation_logits, hidden_states, attentions):
