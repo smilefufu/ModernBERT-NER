@@ -80,6 +80,82 @@ class ModernBertForRelationExtraction(ModernBertPreTrainedModel):
         # 初始化实体类型嵌入
         self.entity_type_embeddings.weight.data.normal_(mean=0.0, std=0.02)
         
+    def get_entity_embeddings(self, sequence_output, entity_spans):
+        # 获取实体表示
+        batch_size = sequence_output.size(0)
+        hidden_size = sequence_output.size(-1)
+        max_relations = entity_spans.size(1)
+        
+        # 初始化一个固定大小的输出张量，每个位置代表一个实体
+        # 形状为 (batch_size * max_relations * 2, hidden_size)，因为每个关系有两个实体
+        entity_embeddings = torch.zeros(
+            (batch_size * max_relations * 2, hidden_size),
+            dtype=sequence_output.dtype,  # 保持与输入相同的数据类型
+            device=sequence_output.device  # 保持与输入相同的设备
+        )
+        
+        valid_count = 0
+        for i in range(batch_size):
+            for j in range(max_relations):
+                spans = entity_spans[i, j]
+                
+                # spans 包含两个实体的位置信息：[实体1起始, 实体1结束, 实体2起始, 实体2结束]
+                start1, end1, start2, end2 = spans.tolist()
+                
+                # 处理第一个实体
+                if start1 > 0 and end1 > 0 and start1 < sequence_output.size(1) and end1 < sequence_output.size(1):
+                    entity1_repr = sequence_output[i, start1:end1+1].mean(dim=0)
+                    entity_embeddings[valid_count] = entity1_repr
+                valid_count += 1
+                
+                # 处理第二个实体
+                if start2 > 0 and end2 > 0 and start2 < sequence_output.size(1) and end2 < sequence_output.size(1):
+                    entity2_repr = sequence_output[i, start2:end2+1].mean(dim=0)
+                    entity_embeddings[valid_count] = entity2_repr
+                valid_count += 1
+        
+        return entity_embeddings
+
+    def compute_relation_scores(self, entity_embeddings):
+        # 计算关系得分
+        batch_size = entity_embeddings.size(0) // 8  # 每个样本有4个关系，每个关系2个实体
+        max_relations = 4
+        hidden_size = entity_embeddings.size(1)
+        
+        # 重塑张量以配对实体
+        # 从 (batch_size * max_relations * 2, hidden_size) 变为 (batch_size * max_relations, hidden_size * 2)
+        entity_embeddings = entity_embeddings.view(batch_size, max_relations, 2, hidden_size)
+        
+        # 为每个实体生成一个默认的实体类型嵌入（这里使用0作为默认类型）
+        default_type = torch.zeros(
+            (batch_size, max_relations, 2),
+            dtype=torch.long,
+            device=entity_embeddings.device  # 使用与输入相同的设备
+        )
+        entity_type_embeddings = self.entity_type_embeddings(default_type)
+        
+        # 拼接实体表示和类型表示
+        entity_pairs = torch.cat([
+            entity_embeddings[:, :, 0, :],  # 第一个实体的表示
+            entity_type_embeddings[:, :, 0, :],  # 第一个实体的类型表示
+            entity_embeddings[:, :, 1, :],  # 第二个实体的表示
+            entity_type_embeddings[:, :, 1, :]  # 第二个实体的类型表示
+        ], dim=-1)  # 最终维度为 hidden_size * 4
+        
+        # 应用层归一化
+        entity_pairs = self.relation_layer_norm(entity_pairs)
+        
+        # 展平为 (batch_size * max_relations, hidden_size * 4)
+        entity_pairs = entity_pairs.view(-1, hidden_size * 4)
+        
+        # 计算关系得分
+        relation_logits = self.relation_head(entity_pairs)
+        
+        # 重塑为 (batch_size, max_relations, num_relations)
+        relation_logits = relation_logits.view(batch_size, max_relations, -1)
+        
+        return relation_logits
+
     def forward(
         self,
         input_ids=None,
@@ -89,155 +165,63 @@ class ModernBertForRelationExtraction(ModernBertPreTrainedModel):
         entity_spans=None,
         return_dict=None,
     ):
-        """前向传播"""
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
         
-        # 获取 BERT 输出
+        # 获取 ModernBERT 的输出
         outputs = self.model(
             input_ids=input_ids,
             attention_mask=attention_mask,
-            return_dict=True,
+            return_dict=return_dict,
         )
         
-        sequence_output = outputs.last_hidden_state
+        sequence_output = outputs[0]
         
-        # 将 padding tokens 的特征置为 0
-        if attention_mask is not None:
-            sequence_output = sequence_output * attention_mask.unsqueeze(-1)
-        
-        # 实体识别
+        # NER 任务
         ner_logits = self.ner_head(sequence_output)
         
-        # 如果没有提供entity_spans，只返回实体识别结果
-        if entity_spans is None:
-            return RelationExtractionOutput(
-                loss=None,
-                ner_logits=ner_logits,
-                relation_logits=None,
-                hidden_states=outputs.hidden_states,
-                attentions=outputs.attentions,
-            )
+        # 获取实体表示
+        entity_embeddings = self.get_entity_embeddings(sequence_output, entity_spans)
         
-        # 关系分类
-        batch_size = sequence_output.size(0)
-        max_relations = entity_spans.size(1)
-        sequence_lengths = attention_mask.sum(dim=1)
-        
-        relation_logits = torch.full((batch_size, max_relations, self.num_relations), 
-                                  -1e4, device=sequence_output.device)
-        
-        # 对每个批次分别处理
-        for i in range(batch_size):
-            seq_len = sequence_lengths[i].item()
-            
-            for j in range(max_relations):
-                spans = entity_spans[i, j]
-                start1, end1, start2, end2 = spans.tolist()
-                
-                # 跳过填充的实体对
-                if start1 == 0 and end1 == 0 and start2 == 0 and end2 == 0:
-                    continue
-                
-                # 确保所有索引都在有效范围内
-                if start1 >= seq_len or start2 >= seq_len:
-                    continue
-                
-                try:
-                    # 获取实体表示并添加eps防止除零
-                    eps = 1e-10
-                    
-                    # 检查切片的有效性
-                    if start1 >= sequence_output.size(1) or end1 >= sequence_output.size(1) or \
-                       start2 >= sequence_output.size(1) or end2 >= sequence_output.size(1):
-                        continue
-                    
-                    # 获取实体表示
-                    entity1_repr = sequence_output[i, start1:end1+1].mean(dim=0)
-                    entity2_repr = sequence_output[i, start2:end2+1].mean(dim=0)
-                    
-                    # 获取实体类型
-                    entity1_type = (labels[i, start1] - 1) // 2  # 减1是因为0是O标签
-                    entity2_type = (labels[i, start2] - 1) // 2
-                    
-                    # 获取实体类型表示
-                    entity1_type_repr = self.entity_type_embeddings(entity1_type)
-                    entity2_type_repr = self.entity_type_embeddings(entity2_type)
-                    
-                    # 拼接实体表示和类型表示
-                    pair_repr = torch.cat([entity1_repr, entity1_type_repr, 
-                                        entity2_repr, entity2_type_repr])
-                    
-                    # LayerNorm
-                    pair_repr = self.relation_layer_norm(pair_repr)
-                    
-                    # 计算关系分数
-                    relation_logits[i, j] = self.relation_head(pair_repr)
-                    
-                except Exception as e:
-                    debug_logger.error(f"处理实体对时出错: {str(e)}")
-                    debug_logger.error(f"实体对信息: i={i}, j={j}, start1={start1}, end1={end1}, start2={start2}, end2={end2}")
-                    debug_logger.error(f"序列长度: {seq_len}")
-                    continue
+        # 计算关系得分
+        relation_logits = self.compute_relation_scores(entity_embeddings)
         
         # 计算损失
         total_loss = None
         if labels is not None and relations is not None:
-            # 更新类别计数
-            if self.use_adaptive_weights and self.training:
-                # 更新NER标签计数
-                label_counts = torch.bincount(labels.view(-1)[labels.view(-1) != -1], 
-                                           minlength=self.num_labels)
-                self.ner_label_counts += label_counts.to(self.ner_label_counts.device)
-                
-                # 更新关系类别计数
-                relation_counts = torch.bincount(relations.view(-1)[relations.view(-1) != -1], 
-                                              minlength=self.num_relations)
-                self.relation_counts += relation_counts.to(self.relation_counts.device)
+            # NER 损失
+            loss_fct = CrossEntropyLoss(
+                weight=self.ner_weights.to(labels.device) if self.ner_weights is not None else None
+            )
             
-            # 计算自适应权重
-            if self.use_adaptive_weights:
-                eps = 1e-8  # 防止除零
-                ner_weights = 1.0 / (self.ner_label_counts + eps)
-                ner_weights = ner_weights / ner_weights.sum() * self.num_labels  # 归一化
-                
-                relation_weights = 1.0 / (self.relation_counts + eps)
-                relation_weights = relation_weights / relation_weights.sum() * self.num_relations
-            else:
-                ner_weights = None
-                relation_weights = None
-            
-            # NER损失
-            ner_loss_fct = CrossEntropyLoss(weight=ner_weights.to(ner_logits.device) if self.use_adaptive_weights else None)
-            
-            if attention_mask is not None:
-                active_loss = attention_mask.view(-1) == 1
-                active_logits = ner_logits.view(-1, self.num_labels)
-                active_labels = torch.where(
-                    active_loss,
-                    labels.view(-1),
-                    torch.tensor(ner_loss_fct.ignore_index).type_as(labels)
-                )
-                
-                loss = ner_loss_fct(active_logits, active_labels)
-            else:
-                loss = ner_loss_fct(ner_logits.view(-1, self.num_labels), labels.view(-1))
+            # 只计算非填充位置的损失
+            active_loss = attention_mask.view(-1) == 1
+            active_logits = ner_logits.view(-1, self.num_labels)
+            active_labels = torch.where(
+                active_loss,
+                labels.view(-1),
+                torch.tensor(loss_fct.ignore_index).type_as(labels)
+            )
+            ner_loss = loss_fct(active_logits, active_labels)
             
             # 关系分类损失
             relation_loss_fct = CrossEntropyLoss(
-                weight=relation_weights.to(relation_logits.device) if self.use_adaptive_weights else None,
-                ignore_index=-1
+                weight=self.relation_weights.to(relations.device) if self.relation_weights is not None else None
+            )
+            relation_loss = relation_loss_fct(
+                relation_logits.view(-1, self.num_relations),
+                relations.view(-1)
             )
             
-            # 只计算有效的关系损失
-            valid_relations = relations != -1
-            if valid_relations.any():
-                re_loss = relation_loss_fct(
-                    relation_logits[valid_relations].view(-1, self.num_relations),
-                    relations[valid_relations].view(-1)
-                )
-                
-                loss = loss + re_loss
-                total_loss = loss
+            # 总损失
+            total_loss = ner_loss + relation_loss
+            
+            # 更新类别权重（如果启用）
+            if self.use_adaptive_weights and self.training:
+                self._update_weights()
+        
+        if not return_dict:
+            output = (ner_logits, relation_logits) + outputs[2:]
+            return ((total_loss,) + output) if total_loss is not None else output
         
         return RelationExtractionOutput(
             loss=total_loss,
@@ -246,6 +230,15 @@ class ModernBertForRelationExtraction(ModernBertPreTrainedModel):
             hidden_states=outputs.hidden_states,
             attentions=outputs.attentions,
         )
+
+    def _update_weights(self):
+        # 计算自适应权重
+        eps = 1e-8  # 防止除零
+        self.ner_weights = 1.0 / (self.ner_label_counts + eps)
+        self.ner_weights = self.ner_weights / self.ner_weights.sum() * self.num_labels  # 归一化
+        
+        self.relation_weights = 1.0 / (self.relation_counts + eps)
+        self.relation_weights = self.relation_weights / self.relation_weights.sum() * self.num_relations
 
 class RelationExtractionOutput:
     def __init__(self, loss, ner_logits, relation_logits, hidden_states, attentions):

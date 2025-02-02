@@ -59,14 +59,114 @@ class CMeIEDataset(Dataset):
     def validate_sample(self, sample: Dict) -> bool:
         """验证样本格式"""
         try:
+            # 基本字段验证
+            if not isinstance(sample, dict):
+                logger.debug("样本不是字典类型")
+                return False
             if not all(k in sample for k in ['text', 'spo_list']):
+                logger.debug("样本缺少必需字段")
                 return False
+            
+            # 文本验证
             if not isinstance(sample['text'], str) or not sample['text'].strip():
+                logger.debug("文本字段无效")
                 return False
+                
+            # SPO列表验证
             if not isinstance(sample['spo_list'], list):
+                logger.debug("spo_list不是列表类型")
                 return False
+            
+            # 如果SPO列表为空，也是合法的
+            if not sample['spo_list']:
+                return True
+                
+            # SPO内容验证
+            for spo in sample['spo_list']:
+                if not isinstance(spo, dict):
+                    logger.debug("SPO不是字典类型")
+                    return False
+                    
+                # 必需字段验证
+                required_fields = ['subject', 'subject_type', 'predicate', 'object', 'object_type',
+                                'subject_start_idx', 'object_start_idx']
+                if not all(k in spo for k in required_fields):
+                    logger.debug(f"SPO缺少必需字段，当前字段: {list(spo.keys())}")
+                    return False
+                    
+                # 字段类型验证
+                if not isinstance(spo['subject'], str) or not spo['subject'].strip():
+                    logger.debug("主实体无效")
+                    return False
+                if not isinstance(spo['subject_type'], str) or not spo['subject_type'].strip():
+                    logger.debug("主实体类型无效")
+                    return False
+                if not isinstance(spo['predicate'], str) or not spo['predicate'].strip():
+                    logger.debug("关系谓语无效")
+                    return False
+                if not isinstance(spo['object'], dict):
+                    logger.debug("客实体不是字典类型")
+                    return False
+                if not isinstance(spo['object_type'], dict):
+                    logger.debug("客实体类型不是字典类型")
+                    return False
+                if not isinstance(spo['subject_start_idx'], int) or spo['subject_start_idx'] < 0:
+                    logger.debug("主实体起始位置无效")
+                    return False
+                if not isinstance(spo['object_start_idx'], int) or spo['object_start_idx'] < 0:
+                    logger.debug("客实体起始位置无效")
+                    return False
+                    
+                # 获取object和object_type的值
+                object_text = spo['object'].get('@value', '')
+                object_type = spo['object_type'].get('@value', '')
+                
+                # 验证object和object_type的值
+                if not isinstance(object_text, str) or not object_text.strip():
+                    logger.debug("客实体文本无效")
+                    return False
+                if not isinstance(object_type, str) or not object_type.strip():
+                    logger.debug("客实体类型无效")
+                    return False
+                    
+                # 验证实体位置的有效性
+                text = sample['text']
+                subject_text = spo['subject']
+                
+                if spo['subject_start_idx'] >= len(text):
+                    logger.debug(f"主实体起始位置超出文本长度: {spo['subject_start_idx']} >= {len(text)}")
+                    return False
+                if spo['object_start_idx'] >= len(text):
+                    logger.debug(f"客实体起始位置超出文本长度: {spo['object_start_idx']} >= {len(text)}")
+                    return False
+                
+                # 验证实体文本匹配
+                subject_end_idx = spo['subject_start_idx'] + len(subject_text)
+                object_end_idx = spo['object_start_idx'] + len(object_text)
+                
+                if subject_end_idx > len(text):
+                    logger.debug(f"主实体结束位置超出文本长度: {subject_end_idx} > {len(text)}")
+                    return False
+                if object_end_idx > len(text):
+                    logger.debug(f"客实体结束位置超出文本长度: {object_end_idx} > {len(text)}")
+                    return False
+                
+                subject_span = text[spo['subject_start_idx']:subject_end_idx]
+                object_span = text[spo['object_start_idx']:object_end_idx]
+                
+                logger.debug(f"验证主实体: 期望='{subject_text}', 实际='{subject_span}', 位置=[{spo['subject_start_idx']}, {subject_end_idx}]")
+                logger.debug(f"验证客实体: 期望='{object_text}', 实际='{object_span}', 位置=[{spo['object_start_idx']}, {object_end_idx}]")
+                
+                if subject_span != subject_text:
+                    logger.warning(f"主实体位置与文本不匹配: {subject_text}")
+                    return False
+                if object_span != object_text:
+                    logger.warning(f"客实体位置与文本不匹配: {object_text}")
+                    return False
+                    
             return True
-        except Exception:
+        except Exception as e:
+            logger.error(f"验证样本时发生错误: {e}")
             return False
 
     def __len__(self) -> int:
@@ -108,7 +208,14 @@ class CMeIEDataset(Dataset):
                 logger.warning(f"客实体位置与文本不匹配: {object_text}")
         
         # 按照起始位置排序，确保标注的一致性
-        return sorted(entities, key=lambda x: (x[1], x[2]))
+        sorted_entities = sorted(entities, key=lambda x: (x[1], x[2]))
+        
+        # 调试日志：输出实体排序结果
+        debug_logger.debug("\n实体排序结果:")
+        for e in sorted_entities:
+            debug_logger.debug(f"实体: {e[0]}, 类型: {e[3]}, 位置: [{e[1]}, {e[2]}]")
+            
+        return sorted_entities
 
     def __getitem__(self, idx: int) -> Dict[str, Any]:
         """获取单个样本"""
@@ -172,17 +279,45 @@ class CMeIEDataset(Dataset):
                 type_id = self.entity_type2id[entity_type]
                 base_label = type_id * 2 + 1  # 每个类型使用两个标签(B和I)
                 
-                # 标记实体的token
-                labels[token_start] = base_label  # B
-                for i in range(token_start + 1, token_end + 1):
-                    labels[i] = base_label + 1  # I
-                mapped_entities += 1
+                # 调试日志：输出当前标签状态
+                debug_logger.debug(f"\n处理实体 '{entity_text}' ({entity_type}):")
+                debug_logger.debug(f"  Token范围: [{token_start}, {token_end}]")
+                debug_logger.debug(f"  标签值: B={base_label}, I={base_label+1}")
+                debug_logger.debug(f"  当前标签序列: {labels[token_start:token_end+1]}")
                 
-                # 调试信息：输出标签分配
-                if idx < 10:
-                    debug_logger.debug(f"实体 '{entity_text}' ({entity_type}):")
-                    debug_logger.debug(f"  Token范围: [{token_start}, {token_end}]")
-                    debug_logger.debug(f"  标签: B={base_label}, I={base_label+1}")
+                # 检查是否已经有标签
+                has_existing_labels = any(labels[i] != 0 for i in range(token_start, token_end + 1))
+                
+                # 如果没有标签，或者当前实体更长，则标注
+                if not has_existing_labels:
+                    # 标记实体的token
+                    labels[token_start] = base_label  # B
+                    for i in range(token_start + 1, token_end + 1):
+                        labels[i] = base_label + 1  # I
+                    mapped_entities += 1
+                else:
+                    # 检查是否是更长的实体
+                    current_length = token_end - token_start + 1
+                    # 找到已有实体的范围
+                    existing_start = token_start
+                    while existing_start > 0 and labels[existing_start - 1] == labels[existing_start]:
+                        existing_start -= 1
+                    existing_end = token_end
+                    while existing_end < len(labels) - 1 and labels[existing_end + 1] == labels[existing_end]:
+                        existing_end += 1
+                    existing_length = existing_end - existing_start + 1
+                    
+                    # 如果当前实体更长，则覆盖已有标签
+                    if current_length > existing_length:
+                        labels[token_start] = base_label  # B
+                        for i in range(token_start + 1, token_end + 1):
+                            labels[i] = base_label + 1  # I
+                        mapped_entities += 1
+                    else:
+                        debug_logger.debug(f"  跳过标注，保持原有标签")
+                
+                # 调试日志：输出更新后的标签
+                debug_logger.debug(f"  更新后标签序列: {labels[token_start:token_end+1]}")
             else:
                 if idx < 100:  # 只记录前100个样本的详细信息
                     logger.warning(f"样本 {idx} 中的实体 '{entity_text}' ({entity_type}) 无法映射到token")

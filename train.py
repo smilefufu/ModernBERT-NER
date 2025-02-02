@@ -611,6 +611,9 @@ def train_epoch(model, train_loader, optimizer, scheduler, device, epoch, config
     """训练一个epoch"""
     model.train()
     total_loss = 0
+    total_ner_loss = 0
+    total_re_loss = 0
+    num_batches = len(train_loader)
     
     # 如果使用加权损失，计算类别权重
     class_weights = None
@@ -618,12 +621,16 @@ def train_epoch(model, train_loader, optimizer, scheduler, device, epoch, config
         class_weights = calculate_class_weights(train_loader, model.config.num_labels, device)
         # 确保权重和为num_classes
         class_weights = class_weights * (model.config.num_labels / class_weights.sum())
+        logger.info(f"类别权重: {class_weights}")
     
     # 获取梯度裁剪阈值
     max_grad_norm = config['training'].get('max_grad_norm', 10.0)
     
     # 创建进度条
     progress_bar = tqdm(train_loader, desc=f"训练 Epoch {epoch}")
+    
+    # 记录每个batch的指标
+    batch_metrics = defaultdict(list)
     
     for batch_idx, batch in enumerate(progress_bar):
         # 将数据移动到设备上
@@ -641,7 +648,12 @@ def train_epoch(model, train_loader, optimizer, scheduler, device, epoch, config
             loss.backward()
             
             # 计算梯度范数
-            total_norm = torch.norm(torch.stack([torch.norm(p.grad.detach(), 2) for p in model.parameters() if p.grad is not None]), 2)
+            grad_norm = torch.norm(torch.stack([torch.norm(p.grad.detach(), 2) for p in model.parameters() if p.grad is not None]), 2)
+            batch_metrics['grad_norm'].append(grad_norm.item())
+            
+            # 如果梯度过大，记录日志
+            if grad_norm > max_grad_norm:
+                logger.warning(f"Epoch {epoch} Batch {batch_idx}: 梯度范数 {grad_norm:.4f} 超过阈值 {max_grad_norm}")
             
             # 梯度裁剪
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
@@ -652,14 +664,39 @@ def train_epoch(model, train_loader, optimizer, scheduler, device, epoch, config
             # 更新学习率
             if scheduler is not None:
                 scheduler.step()
+                batch_metrics['learning_rate'].append(scheduler.get_last_lr()[0])
             
-            # 更新损失
+            # 记录损失
             total_loss += loss.item()
+            batch_metrics['loss'].append(loss.item())
             
             # 更新进度条
-            progress_bar.set_postfix({'loss': f"{loss.item():.4f}"})
+            progress_bar.set_postfix({
+                'loss': f"{loss.item():.4f}",
+                'grad': f"{grad_norm:.2f}",
+                'lr': f"{scheduler.get_last_lr()[0]:.2e}" if scheduler else "N/A"
+            })
             
-    return total_loss / len(train_loader)
+            # 每100个batch记录一次详细信息
+            if (batch_idx + 1) % 100 == 0:
+                avg_metrics = {k: sum(v[-100:]) / len(v[-100:]) for k, v in batch_metrics.items()}
+                logger.info(
+                    f"Epoch {epoch} Batch {batch_idx + 1}/{num_batches} - "
+                    f"平均损失: {avg_metrics['loss']:.4f}, "
+                    f"梯度范数: {avg_metrics['grad_norm']:.4f}, "
+                    f"学习率: {avg_metrics['learning_rate']:.2e}"
+                )
+    
+    # 计算平均损失
+    avg_loss = total_loss / num_batches
+    
+    # 记录epoch结束时的指标
+    logger.info(
+        f"Epoch {epoch} 训练完成 - "
+        f"平均损失: {avg_loss:.4f}"
+    )
+    
+    return avg_loss
 
 def evaluate(model, data_loader, device, config):
     """评估模型"""
