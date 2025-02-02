@@ -537,7 +537,13 @@ def initialize_training(config, device):
     optimizer = get_optimizer(model, config)
     
     # 学习率调度器
-    total_steps = len(load_data(config, tokenizer)[0]) * config['training']['num_train_epochs']
+    train_dataset = CMeIEDataset(
+        config['data']['train_file'],
+        tokenizer,
+        config['data']['schema_file'],
+        config['data']['max_seq_length']
+    )
+    total_steps = math.ceil(len(train_dataset) / config['training']['batch_size']) * config['training']['num_train_epochs']
     warmup_steps = int(total_steps * config['training']['warmup_ratio'])  # 使用预热比例计算预热步数
     
     def get_lr_multiplier(step):
@@ -560,24 +566,6 @@ def initialize_training(config, device):
     logger.info(f"总训练步数: {total_steps}")
     logger.info(f"预热步数: {warmup_steps}")
     logger.info(f"预热比例: {config['training']['warmup_ratio']}")
-    
-    # 记录学习率曲线
-    base_lr = float(config['training']['learning_rate'])  # 确保是浮点数
-    sample_steps = list(range(0, total_steps, total_steps//10))
-    logger.info("\n学习率曲线采样:")
-    logger.debug(f"基础学习率: {base_lr}, 类型: {type(base_lr)}")
-    
-    for step in sample_steps:
-        try:
-            multiplier = get_lr_multiplier(step)
-            logger.debug(f"Step {step} - 乘数: {multiplier}, 类型: {type(multiplier)}")
-            lr = base_lr * multiplier
-            logger.info(f"Step {step}: {lr:.2e}")
-        except Exception as e:
-            logger.error(f"计算学习率时出错 - step: {step}")
-            logger.error(f"错误类型: {type(e)}")
-            logger.error(f"错误信息: {str(e)}")
-            raise
     
     return model, tokenizer, optimizer, scheduler
 
