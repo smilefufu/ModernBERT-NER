@@ -192,62 +192,102 @@ def extract_entities_and_relations(outputs, text, tokenizer, offset_mapping, inp
     for i, (token, pred) in enumerate(zip(tokens, predictions)):
         logger.debug(f"位置 {i}: Token='{token}' (长度={len(token)}), 标签={pred}")
     
+    # 实体类型列表
+    entity_types = [
+        "疾病", "症状", "检查", "手术", "药物", "其他治疗", 
+        "部位", "社会学", "流行病学", "预后", "其他"
+    ]
+    
     entities = []
-    current_entity = None
+    current_entities = {}  # 每种类型的当前实体
     
     logger.debug("\n实体识别过程:")
     for i, (token, pred) in enumerate(zip(tokens, predictions)):
         if pred == 0:  # O tag
-            if current_entity is not None:
-                logger.debug(f"完成实体: {current_entity}")
-                entities.append(current_entity)
-                current_entity = None
-        elif pred == 1:  # B tag
-            if current_entity is not None:
-                logger.debug(f"完成实体: {current_entity}")
+            # 结束所有当前实体
+            for entity_type, current_entity in current_entities.items():
+                if current_entity is not None:
+                    logger.debug(f"完成{entity_type}实体: {current_entity}")
+                    entities.append(current_entity)
+            current_entities = {}
+        else:
+            # 计算实体类型
+            type_idx = (pred - 1) // 2
+            is_b_tag = (pred - 1) % 2 == 0
+            entity_type = entity_types[type_idx]
             
-            # 获取当前token对应的原始文本范围
-            token_start, token_end = offset_mapping[i]
-            current_entity = {
-                "start_idx": int(token_start),
-                "end_idx": int(token_end),
-                "text": text[token_start:token_end],
-                "tokens": [token]
-            }
-            logger.debug(f"开始新实体: 位置={i}, Token='{token}', 文本范围={token_start}:{token_end}")
-            
-        elif pred == 2:  # I tag
-            if current_entity is not None:
+            if is_b_tag:  # B tag
+                # 如果该类型已有实体，先结束它
+                if entity_type in current_entities and current_entities[entity_type] is not None:
+                    logger.debug(f"完成{entity_type}实体: {current_entities[entity_type]}")
+                    entities.append(current_entities[entity_type])
+                
                 # 获取当前token对应的原始文本范围
                 token_start, token_end = offset_mapping[i]
-                current_entity["end_idx"] = int(token_end)
-                current_entity["tokens"].append(token)
-                current_entity["text"] = text[current_entity["start_idx"]:token_end]
-                logger.debug(f"扩展实体: 添加Token='{token}', 当前文本='{current_entity['text']}'")
-            else:
-                # 如果遇到孤立的I标签，当作B标签处理
-                token_start, token_end = offset_mapping[i]
-                current_entity = {
+                current_entities[entity_type] = {
                     "start_idx": int(token_start),
                     "end_idx": int(token_end),
                     "text": text[token_start:token_end],
-                    "tokens": [token]
+                    "tokens": [token],
+                    "type": entity_type
                 }
-                logger.debug(f"开始新实体(I): 位置={i}, Token='{token}', 文本范围={token_start}:{token_end}")
+                logger.debug(f"开始新{entity_type}实体: 位置={i}, Token='{token}', 文本范围={token_start}:{token_end}")
+                
+            else:  # I tag
+                if entity_type in current_entities and current_entities[entity_type] is not None:
+                    # 获取当前token对应的原始文本范围
+                    token_start, token_end = offset_mapping[i]
+                    current_entities[entity_type]["end_idx"] = int(token_end)
+                    current_entities[entity_type]["tokens"].append(token)
+                    current_entities[entity_type]["text"] = text[current_entities[entity_type]["start_idx"]:token_end]
+                    logger.debug(f"扩展{entity_type}实体: 添加Token='{token}', 当前文本='{current_entities[entity_type]['text']}'")
+                else:
+                    # 如果遇到孤立的I标签，当作B标签处理
+                    token_start, token_end = offset_mapping[i]
+                    current_entities[entity_type] = {
+                        "start_idx": int(token_start),
+                        "end_idx": int(token_end),
+                        "text": text[token_start:token_end],
+                        "tokens": [token],
+                        "type": entity_type
+                    }
+                    logger.debug(f"开始新{entity_type}实体(I): 位置={i}, Token='{token}', 文本范围={token_start}:{token_end}")
     
-    if current_entity is not None:
-        logger.debug(f"完成最后一个实体: {current_entity}")
-        entities.append(current_entity)
+    # 处理最后的实体
+    for entity_type, current_entity in current_entities.items():
+        if current_entity is not None:
+            logger.debug(f"完成最后一个{entity_type}实体: {current_entity}")
+            entities.append(current_entity)
     
     # 过滤掉特殊token（[CLS], [SEP], [PAD]）产生的实体
     entities = [e for e in entities if not any(special in e["tokens"] for special in ["[CLS]", "[SEP]", "[PAD]"])]
     
     logger.debug("\n最终识别的实体:")
     for e in entities:
-        logger.debug(f"实体: '{e['text']}', 位置: {e['start_idx']}-{e['end_idx']}")
+        logger.debug(f"{e['type']}实体: '{e['text']}', 位置: {e['start_idx']}-{e['end_idx']}")
+    
+    # 如果有关系预测结果，处理关系
+    relations = []
+    if outputs.relation_logits is not None:
+        relation_logits = outputs.relation_logits[0]  # [num_relations, num_relations]
+        relation_preds = torch.argmax(relation_logits, dim=-1)
+        
+        # 遍历所有实体对
+        for i, entity1 in enumerate(entities):
+            for j, entity2 in enumerate(entities):
+                if i != j:
+                    relation_idx = relation_preds[i, j].item()
+                    if relation_idx > 0:  # 0 表示无关系
+                        relations.append({
+                            "subject": entity1["text"],
+                            "subject_type": entity1["type"],
+                            "object": entity2["text"],
+                            "object_type": entity2["type"],
+                            "relation": relation_idx
+                        })
     
     logger.debug("="*50 + "\n")
-    return entities, []
+    return entities, relations
 
 if __name__ == '__main__':
     # 示例用法

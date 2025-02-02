@@ -16,52 +16,6 @@ import numpy as np
 from typing import Dict, List, Any
 from collections import defaultdict
 
-# 配置日志
-debug_logger = logging.getLogger('debug')
-debug_logger.setLevel(logging.DEBUG)
-
-# 创建文件处理器
-log_file = os.path.join(os.path.dirname(__file__), 'debug.txt')
-file_handler = logging.FileHandler(log_file, mode='w')
-file_handler.setLevel(logging.DEBUG)
-
-# 创建格式器
-formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-file_handler.setFormatter(formatter)
-
-# 添加处理器到日志记录器
-debug_logger.addHandler(file_handler)
-
-# 设置调试日志
-debug_logger = logging.getLogger('debug')
-debug_logger.setLevel(logging.WARNING)
-debug_handler = logging.FileHandler('debug.txt', mode='w', encoding='utf-8')
-debug_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
-debug_logger.addHandler(debug_handler)
-
-def log_tensor_info(name, tensor, step=None):
-    return
-    """记录tensor的详细信息"""
-    if tensor is None:
-        debug_logger.debug(f"{name} is None")
-        return
-        
-    info = {
-        'shape': tensor.shape,
-        'dtype': tensor.dtype,
-        'device': tensor.device,
-        'min': tensor.min().item() if tensor.numel() > 0 else None,
-        'max': tensor.max().item() if tensor.numel() > 0 else None,
-        'mean': tensor.float().mean().item() if tensor.numel() > 0 else None,
-        'has_nan': torch.isnan(tensor).any().item(),
-        'has_inf': torch.isinf(tensor).any().item()
-    }
-    
-    step_info = f" (step {step})" if step is not None else ""
-    debug_logger.debug(f"{name}{step_info}:")
-    for k, v in info.items():
-        debug_logger.debug(f"  {k}: {v}")
-
 # 设置tokenizer并行处理
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
@@ -200,13 +154,13 @@ def get_optimizer(model, config):
     ]
     
     # 记录每组参数的学习率
-    debug_logger.info("\n优化器参数组配置:")
+    logger.info("\n优化器参数组配置:")
     for group in optimizer_grouped_parameters:
         param_names = [n for n, p in model.named_parameters() 
                       if any(p is param for param in group['params'])]
-        debug_logger.info(f"学习率 {group['lr']:.2e}, 权重衰减 {group['weight_decay']:.2e}:")
+        logger.info(f"学习率 {group['lr']:.2e}, 权重衰减 {group['weight_decay']:.2e}:")
         for name in param_names:
-            debug_logger.info(f"  - {name}")
+            logger.info(f"  - {name}")
     
     return torch.optim.AdamW(
         optimizer_grouped_parameters,
@@ -446,51 +400,41 @@ def load_data(config, tokenizer):
 def initialize_training(config, device):
     """初始化训练所需的模型、优化器和调度器"""
     # 加载预训练配置
-    debug_logger.info(f"开始加载预训练模型配置，路径: {config['model']['model_name_or_path']}")
+    logger.info(f"开始加载预训练模型配置，路径: {config['model']['model_name_or_path']}")
     model_config = AutoConfig.from_pretrained(
         config['model']['model_name_or_path'],
         num_labels=config['model']['num_labels'],
         num_relations=config['model']['num_relations'],
         entity_types=config['model']['entity_types']
     )
-    debug_logger.info("预训练模型配置加载完成")
-    debug_logger.info(f"配置信息: {model_config}")
+    logger.info("预训练模型配置加载完成")
+    logger.info(f"配置信息: {model_config}")
     
     # 检查预训练模型文件是否存在
     model_path = config['model']['model_name_or_path']
     if not os.path.exists(model_path):
-        debug_logger.error(f"预训练模型路径不存在: {model_path}")
+        logger.error(f"预训练模型路径不存在: {model_path}")
         raise FileNotFoundError(f"预训练模型路径不存在: {model_path}")
-    
-    # 检查模型文件
-    debug_logger.info("检查预训练模型文件:")
-    for file in os.listdir(model_path):
-        debug_logger.info(f"  - {file}")
+
     
     # 加载 safetensors 格式的模型文件
     safetensors_path = os.path.join(model_path, "model.safetensors")
     if not os.path.exists(safetensors_path):
-        debug_logger.error(f"找不到 model.safetensors: {safetensors_path}")
+        logger.error(f"找不到 model.safetensors: {safetensors_path}")
         raise FileNotFoundError(f"找不到 model.safetensors: {safetensors_path}")
     
     # 从预训练模型初始化
-    debug_logger.info("开始加载预训练模型权重")
+    logger.info("开始加载预训练模型权重")
     try:
         # 加载预训练权重
         state_dict = safetensors.torch.load_file(safetensors_path)
-        debug_logger.info(f"成功加载权重文件，包含以下键:")
-        for key in state_dict.keys():
-            debug_logger.info(f"  - {key}")
         
         # 创建模型实例
         model = ModernBertForRelationExtraction(model_config)
-        debug_logger.info("创建了新的ModernBertForRelationExtraction实例")
+        logger.info("创建了新的ModernBertForRelationExtraction实例")
         
         # 检查模型的键和预训练权重的键是否匹配
         model_state = model.state_dict()
-        debug_logger.info(f"模型需要的键:")
-        for key in model_state.keys():
-            debug_logger.info(f"  - {key}")
         
         # 检查键的匹配情况
         EXPECTED_MISSING_KEYS = {
@@ -514,31 +458,31 @@ def initialize_training(config, device):
         if missing_keys:
             unexpected_missing = set(missing_keys) - EXPECTED_MISSING_KEYS
             if unexpected_missing:
-                debug_logger.warning(f"发现意外缺少的键:")
+                logger.warning(f"发现意外缺少的键:")
                 for k in sorted(unexpected_missing):
-                    debug_logger.warning(f"  - {k}")
-            if debug_logger.isEnabledFor(logging.DEBUG):
-                debug_logger.debug(f"预期缺少的键:")
+                    logger.warning(f"  - {k}")
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug(f"预期缺少的键:")
                 for k in sorted(set(missing_keys) & EXPECTED_MISSING_KEYS):
-                    debug_logger.debug(f"  - {k}")
+                    logger.debug(f"  - {k}")
         
         if unexpected_keys:
             unexpected_unused = set(unexpected_keys) - EXPECTED_UNUSED_KEYS
             if unexpected_unused:
-                debug_logger.warning(f"发现意外未使用的键:")
+                logger.warning(f"发现意外未使用的键:")
                 for k in sorted(unexpected_unused):
-                    debug_logger.warning(f"  - {k}")
-            if debug_logger.isEnabledFor(logging.DEBUG):
-                debug_logger.debug(f"预期未使用的键:")
+                    logger.warning(f"  - {k}")
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug(f"预期未使用的键:")
                 for k in sorted(set(unexpected_keys) & EXPECTED_UNUSED_KEYS):
-                    debug_logger.debug(f"  - {k}")
+                    logger.debug(f"  - {k}")
         
         # 加载权重
         model.load_state_dict(state_dict, strict=False)
-        debug_logger.info("预训练模型权重加载完成")
+        logger.info("预训练模型权重加载完成")
         
         # 检查关键层的权重状态
-        debug_logger.info("检查关键层的权重状态:")
+        logger.info("检查关键层的权重状态:")
         key_layers = [
             'model.embeddings.word_embeddings',
             'model.encoder.layer.0',
@@ -556,22 +500,22 @@ def initialize_training(config, device):
                     'has_nan': torch.isnan(param.data).any().item(),
                     'has_inf': torch.isinf(param.data).any().item()
                 }
-                debug_logger.info(f"{name} 统计信息:")
+                logger.info(f"{name} 统计信息:")
                 for k, v in stats.items():
-                    debug_logger.info(f"  {k}: {v}")
+                    logger.info(f"  {k}: {v}")
         
     except Exception as e:
-        debug_logger.error(f"加载预训练模型时出错: {str(e)}")
-        debug_logger.error(f"错误类型: {type(e)}")
-        debug_logger.error("错误堆栈:", exc_info=True)
+        logger.error(f"加载预训练模型时出错: {str(e)}")
+        logger.error(f"错误类型: {type(e)}")
+        logger.error("错误堆栈:", exc_info=True)
         raise
     
     # 移动到指定设备
     model.to(device)
-    debug_logger.info(f"模型已移动到设备: {device}")
+    logger.info(f"模型已移动到设备: {device}")
     
     # 设置tokenizer
-    debug_logger.info("开始加载tokenizer")
+    logger.info("开始加载tokenizer")
     tokenizer = AutoTokenizer.from_pretrained(
         config['model']['model_name_or_path'],
         model_max_length=config['data']['max_seq_length'],
@@ -581,11 +525,11 @@ def initialize_training(config, device):
         tokenize_chinese_chars=True,
         encoding='utf-8'
     )
-    debug_logger.info("tokenizer加载完成")
+    logger.info("tokenizer加载完成")
     
     # 冻结预训练模型的参数（可选）
     if config['training'].get('freeze_backbone', False):
-        debug_logger.info("冻结预训练模型参数")
+        logger.info("冻结预训练模型参数")
         for param in model.model.parameters():
             param.requires_grad = False
     
@@ -606,17 +550,17 @@ def initialize_training(config, device):
     
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
     
-    debug_logger.info("\n学习率调度器配置:")
-    debug_logger.info(f"总训练步数: {total_steps}")
-    debug_logger.info(f"预热步数: {warmup_steps}")
-    debug_logger.info(f"预热比例: {config['training']['warmup_ratio']}")
+    logger.info("\n学习率调度器配置:")
+    logger.info(f"总训练步数: {total_steps}")
+    logger.info(f"预热步数: {warmup_steps}")
+    logger.info(f"预热比例: {config['training']['warmup_ratio']}")
     
     # 记录学习率曲线
     steps = list(range(total_steps))
     lrs = [lr_lambda(step) * config['training']['learning_rate'] for step in steps]
-    debug_logger.info("\n学习率曲线采样:")
+    logger.info("\n学习率曲线采样:")
     for i, step in enumerate(range(0, total_steps, total_steps//10)):
-        debug_logger.info(f"Step {step}: {lrs[step]:.2e}")
+        logger.info(f"Step {step}: {lrs[step]:.2e}")
     
     return model, tokenizer, optimizer, scheduler
 
@@ -682,13 +626,6 @@ def train_epoch(model, train_loader, optimizer, scheduler, device, epoch, config
     progress_bar = tqdm(train_loader, desc=f"训练 Epoch {epoch}")
     
     for batch_idx, batch in enumerate(progress_bar):
-        debug_logger.debug(f"\n处理第{epoch}轮第{batch_idx}个batch")
-        
-        # 检查输入数据
-        debug_logger.debug("输入数据统计:")
-        debug_logger.debug(f"  input_ids形状: {batch['input_ids'].shape}")
-        debug_logger.debug(f"  attention_mask形状: {batch['attention_mask'].shape}")
-        
         # 将数据移动到设备上
         batch = {k: v.to(device) for k, v in batch.items()}
         
@@ -705,14 +642,6 @@ def train_epoch(model, train_loader, optimizer, scheduler, device, epoch, config
             
             # 计算梯度范数
             total_norm = torch.norm(torch.stack([torch.norm(p.grad.detach(), 2) for p in model.parameters() if p.grad is not None]), 2)
-            # debug_logger.warning(f"梯度范数过大: {total_norm.item()}")
-            
-            # # 记录每个参数的梯度范数
-            # for name, param in model.named_parameters():
-            #     if param.grad is not None:
-            #         param_norm = param.grad.data.norm(2).item()
-            #         if param_norm > 5.0:  # 只记录较大的梯度
-            #             debug_logger.warning(f"  {name} 的梯度范数: {param_norm:.4f}")
             
             # 梯度裁剪
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)

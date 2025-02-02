@@ -1,9 +1,10 @@
 """
 CMeIE 数据集加载器
 """
+import torch
 import json
 import logging
-import torch
+from utils.debug_utils import debug_logger
 from torch.utils.data import Dataset
 from typing import List, Dict, Any, Optional, Tuple, Set
 
@@ -40,6 +41,11 @@ class CMeIEDataset(Dataset):
         self.tokenizer = tokenizer
         self.max_length = max_length
         
+        # 实体类型映射
+        self.entity_types = ['疾病', '症状', '检查', '手术', '药物', '其他治疗', 
+                           '部位', '社会学', '流行病学', '预后', '其他']
+        self.entity_type2id = {t: i for i, t in enumerate(self.entity_types)}
+        
         # 加载数据
         raw_data = load_json_or_jsonl(data_file)
         self.data = [sample for sample in raw_data if self.validate_sample(sample)]
@@ -67,35 +73,37 @@ class CMeIEDataset(Dataset):
         """返回数据集大小"""
         return len(self.data)
 
-    def extract_entities_from_spo(self, text: str, spo_list: List[Dict]) -> List[Tuple[str, int, int]]:
+    def extract_entities_from_spo(self, text: str, spo_list: List[Dict]) -> List[Tuple[str, int, int, str]]:
         """从 spo_list 中提取实体信息
         Args:
             text: 原始文本
             spo_list: SPO列表
         Returns:
-            实体列表，每个实体是一个元组 (实体文本, 起始位置, 结束位置)
+            实体列表，每个实体是一个元组 (实体文本, 起始位置, 结束位置, 实体类型)
         """
-        entities: Set[Tuple[str, int, int]] = set()
+        entities: Set[Tuple[str, int, int, str]] = set()
         
         for spo in spo_list:
             # 处理主实体
             subject_text = spo['subject']
             subject_start = spo['subject_start_idx']
             subject_end = subject_start + len(subject_text)
+            subject_type = spo['subject_type']
             
             # 处理客实体
             object_text = spo['object'].get('@value', '')
             object_start = spo['object_start_idx']
             object_end = object_start + len(object_text)
+            object_type = spo['object_type'].get('@value', '')
             
             # 验证位置的正确性
             if text[subject_start:subject_end] == subject_text:
-                entities.add((subject_text, subject_start, subject_end))
+                entities.add((subject_text, subject_start, subject_end, subject_type))
             else:
                 logger.warning(f"主实体位置与文本不匹配: {subject_text}")
                 
             if text[object_start:object_end] == object_text:
-                entities.add((object_text, object_start, object_end))
+                entities.add((object_text, object_start, object_end, object_type))
             else:
                 logger.warning(f"客实体位置与文本不匹配: {object_text}")
         
@@ -114,30 +122,35 @@ class CMeIEDataset(Dataset):
             padding='max_length',
             truncation=True,
             return_offsets_mapping=True,
-            add_special_tokens=True,  # 确保添加特殊token
-            return_token_type_ids=True,  # 返回token类型ID
-            return_attention_mask=True  # 返回注意力掩码
+            add_special_tokens=True,
+            return_token_type_ids=True,
+            return_attention_mask=True
         )
         
         # 输出分词调试信息（仅对前100个样本）
         if idx < 100:
             tokens = self.tokenizer.convert_ids_to_tokens(encoding['input_ids'])
-            logger.debug(f"\n样本 {idx} 分词结果:")
-            logger.debug(f"原文: {text}")
-            logger.debug(f"分词: {' '.join(tokens)}")
-            logger.debug(f"位置映射: {encoding['offset_mapping']}")
+            debug_logger.debug(f"\n样本 {idx} 分词结果:")
+            debug_logger.debug(f"原文: {text}")
+            debug_logger.debug(f"分词: {' '.join(tokens)}")
+            debug_logger.debug(f"位置映射: {encoding['offset_mapping']}")
         
         # 获取token的位置映射
         offset_mapping = encoding.pop('offset_mapping')
         
         # 初始化NER标签序列（使用BIO标注方案）
+        num_entity_types = len(self.entity_types)
         labels = [0] * len(encoding['input_ids'])  # 0表示O标签
         
         # 从 spo_list 中提取实体信息
         entities = self.extract_entities_from_spo(text, sample['spo_list'])
         
+        # 记录实体标注统计信息
+        total_entities = len(entities)
+        mapped_entities = 0
+        
         # 标注实体
-        for entity_text, start_idx, end_idx in entities:
+        for entity_text, start_idx, end_idx, entity_type in entities:
             # 找到实体的token范围
             token_start = None
             token_end = None
@@ -149,10 +162,24 @@ class CMeIEDataset(Dataset):
                     break
             
             if token_start is not None and token_end is not None:
+                # 获取实体类型对应的标签基数
+                type_id = self.entity_type2id[entity_type]
+                base_label = type_id * 2 + 1  # 每个类型使用两个标签(B和I)
+                
                 # 标记实体的token
-                labels[token_start] = 1  # B
+                labels[token_start] = base_label  # B
                 for i in range(token_start + 1, token_end + 1):
-                    labels[i] = 2  # I
+                    labels[i] = base_label + 1  # I
+                mapped_entities += 1
+            else:
+                if idx < 100:  # 只记录前100个样本的详细信息
+                    logger.warning(f"样本 {idx} 中的实体 '{entity_text}' ({entity_type}) 无法映射到token")
+                    logger.warning(f"实体位置: [{start_idx}, {end_idx}]")
+                    logger.warning(f"原文: {text}")
+                    logger.warning(f"offset_mapping: {offset_mapping}")
+        
+        if idx < 100 or mapped_entities < total_entities:
+            logger.info(f"样本 {idx} 实体标注统计: 总实体数 {total_entities}, 成功映射 {mapped_entities}")
         
         # 初始化关系矩阵
         max_relations = 64  # 每个样本最多处理的关系数

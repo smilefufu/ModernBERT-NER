@@ -1,48 +1,58 @@
 import numpy as np
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 from sklearn.metrics import precision_recall_fscore_support, confusion_matrix
+from utils.debug_utils import debug_logger
 
 def calculate_ner_metrics(predictions: List[np.ndarray], 
                         labels: List[np.ndarray], 
-                        entity_types: List[str]) -> Dict:
+                        entity_types: List[str],
+                        attention_mask: Optional[List[np.ndarray]] = None) -> Dict:
     """计算NER任务的评估指标
     
     Args:
         predictions: 预测的标签序列列表，每个元素是一个batch的预测
         labels: 真实的标签序列列表，每个元素是一个batch的标签
         entity_types: 实体类型列表
+        attention_mask: 注意力掩码列表（可选）
         
     Returns:
         包含precision, recall, f1等指标的字典
     """
-    # 将预测和标签展平
+    # 展平预测和标签
     pred_flat = np.concatenate([p.flatten() for p in predictions])
     label_flat = np.concatenate([l.flatten() for l in labels])
     
+    # 记录标签分布
+    debug_logger.log_distribution("NER标签分布", label_flat, labels=entity_types)
+    debug_logger.log_distribution("NER预测分布", pred_flat, labels=entity_types)
+    
     # 计算各项指标
     precision, recall, f1, support = precision_recall_fscore_support(
-        label_flat, 
-        pred_flat, 
-        labels=list(range(len(entity_types))),  # 确保包含所有可能的标签
-        average='weighted',
-        zero_division=0  # 当某个类别没有预测样本时返回0
+        label_flat,
+        pred_flat,
+        average='macro',
+        labels=list(range(len(entity_types)))  # 确保包含所有可能的标签
     )
     
     # 计算每个类别的指标
     class_precision, class_recall, class_f1, _ = precision_recall_fscore_support(
         label_flat,
         pred_flat,
-        labels=list(range(len(entity_types))),  # 确保包含所有可能的标签
         average=None,
-        zero_division=0  # 当某个类别没有预测样本时返回0
+        labels=list(range(len(entity_types)))  # 确保包含所有可能的标签
     )
     
     # 计算混淆矩阵
     conf_mat = confusion_matrix(
-        label_flat, 
+        label_flat,
         pred_flat,
         labels=list(range(len(entity_types)))  # 确保包含所有可能的标签
     )
+    
+    # 记录混淆矩阵
+    debug_logger.debug("\nNER混淆矩阵:")
+    for i, row in enumerate(conf_mat):
+        debug_logger.debug(f"  {entity_types[i]}: {row.tolist()}")
     
     # 整理每个实体类型的指标
     entity_metrics = {}
@@ -57,51 +67,59 @@ def calculate_ner_metrics(predictions: List[np.ndarray],
         'precision': precision,
         'recall': recall,
         'f1': f1,
-        'confusion_matrix': conf_mat,
         'entity_metrics': entity_metrics
     }
 
-def calculate_re_metrics(predictions: List[np.ndarray], 
-                       labels: List[np.ndarray], 
-                       relations: List[str]) -> Dict:
+def calculate_re_metrics(predictions: List[np.ndarray],
+                       labels: List[np.ndarray],
+                       relations: List[str],
+                       attention_mask: Optional[List[np.ndarray]] = None) -> Dict:
     """计算关系抽取任务的评估指标
     
     Args:
         predictions: 预测的关系标签序列列表，每个元素是一个batch的预测
         labels: 真实的关系标签序列列表，每个元素是一个batch的标签
         relations: 关系类型列表
+        attention_mask: 注意力掩码列表（可选）
         
     Returns:
         包含precision, recall, f1等指标的字典
     """
-    # 将预测和标签展平
+    # 展平预测和标签
     pred_flat = np.concatenate([p.flatten() for p in predictions])
     label_flat = np.concatenate([l.flatten() for l in labels])
+    
+    # 记录标签分布
+    debug_logger.log_distribution("关系标签分布", label_flat, labels=relations)
+    debug_logger.log_distribution("关系预测分布", pred_flat, labels=relations)
     
     # 计算整体指标
     precision, recall, f1, support = precision_recall_fscore_support(
         label_flat,
         pred_flat,
-        labels=list(range(len(relations))),  # 确保包含所有可能的标签
-        average='weighted',
-        zero_division=0  # 当某个类别没有预测样本时返回0
+        average='macro',
+        labels=list(range(len(relations)))  # 确保包含所有可能的标签
     )
     
-    # 计算每个关系类型的指标
+    # 计算每个类别的指标
     class_precision, class_recall, class_f1, _ = precision_recall_fscore_support(
         label_flat,
         pred_flat,
-        labels=list(range(len(relations))),  # 确保包含所有可能的标签
         average=None,
-        zero_division=0  # 当某个类别没有预测样本时返回0
+        labels=list(range(len(relations)))  # 确保包含所有可能的标签
     )
     
     # 计算混淆矩阵
     conf_mat = confusion_matrix(
-        label_flat, 
+        label_flat,
         pred_flat,
         labels=list(range(len(relations)))  # 确保包含所有可能的标签
     )
+    
+    # 记录混淆矩阵
+    debug_logger.debug("\n关系抽取混淆矩阵:")
+    for i, row in enumerate(conf_mat):
+        debug_logger.debug(f"  {relations[i]}: {row.tolist()}")
     
     # 整理每个关系类型的指标
     relation_metrics = {}
@@ -116,7 +134,6 @@ def calculate_re_metrics(predictions: List[np.ndarray],
         'precision': precision,
         'recall': recall,
         'f1': f1,
-        'confusion_matrix': conf_mat,
         'relation_metrics': relation_metrics
     }
 
