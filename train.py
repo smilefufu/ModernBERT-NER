@@ -537,7 +537,6 @@ def initialize_training(config, device):
     optimizer = get_optimizer(model, config)
     
     # 学习率调度器
-    scheduler_config = config['training']['scheduler']
     total_steps = len(load_data(config, tokenizer)[0]) * config['training']['num_train_epochs']
     warmup_steps = int(total_steps * config['training']['warmup_ratio'])  # 使用预热比例计算预热步数
     
@@ -553,13 +552,11 @@ def initialize_training(config, device):
         logger.debug(f"学习率乘数: {multiplier}, 类型: {type(multiplier)}")
         return multiplier
     
-    if scheduler_config['type'] == 'linear':
-        scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, get_lr_multiplier)
-    else:
-        raise ValueError(f"不支持的学习率调度器类型: {scheduler_config['type']}")
+    # 使用线性学习率调度器
+    scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, get_lr_multiplier)
     
     logger.info("\n学习率调度器配置:")
-    logger.info(f"类型: {scheduler_config['type']}")
+    logger.info(f"类型: linear")
     logger.info(f"总训练步数: {total_steps}")
     logger.info(f"预热步数: {warmup_steps}")
     logger.info(f"预热比例: {config['training']['warmup_ratio']}")
