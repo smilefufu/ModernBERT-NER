@@ -18,7 +18,7 @@ training:
   learning_rate: 5e-6  # 降低学习率
   weight_decay: 0.01
   max_grad_norm: 10.0  # 保持梯度裁剪阈值
-  warmup_ratio: 0.2  # 增加预热比例
+  warmup_ratio: 0.35  # 增加预热比例
   
   # 学习率调度
   scheduler:

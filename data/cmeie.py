@@ -341,10 +341,11 @@ class CMeIEDataset(Dataset):
         if idx < 100 or mapped_entities < total_entities:
             logger.info(f"样本 {idx} 实体标注统计: 总实体数 {total_entities}, 成功映射 {mapped_entities}")
         
-        # 初始化关系矩阵
+        # 初始化关系矩阵和实体类型矩阵
         max_relations = 64  # 每个样本最多处理的关系数
         relations = torch.full((max_relations,), -1, dtype=torch.long)
         spans = torch.zeros((max_relations, 4), dtype=torch.long)
+        entity_types = torch.zeros((max_relations, 2), dtype=torch.long)  # 新增：存储每个关系的两个实体类型
         
         # 处理实体关系
         relation_count = 0
@@ -355,6 +356,8 @@ class CMeIEDataset(Dataset):
             subject_text = spo['subject']
             object_text = spo['object'].get('@value', '')
             predicate = spo['predicate']
+            subject_type = spo['subject_type']
+            object_type = spo['object_type']
             
             # 使用标注的起始位置
             subject_start = spo['subject_start_idx']
@@ -385,6 +388,9 @@ class CMeIEDataset(Dataset):
                     subject_token_start, subject_token_end,
                     object_token_start, object_token_end
                 ])
+                # 记录实体类型
+                entity_types[relation_count, 0] = self.entity_type2id[subject_type]
+                entity_types[relation_count, 1] = self.entity_type2id[object_type]
                 relation_count += 1
                 
                 # 调试信息：输出关系映射
@@ -399,13 +405,12 @@ class CMeIEDataset(Dataset):
             debug_logger.debug(f"\n样本 {idx} 最终处理的关系数: {relation_count}")
         
         return {
-            'input_ids': torch.tensor(encoding['input_ids']),
-            'attention_mask': torch.tensor(encoding['attention_mask']),
-            'token_type_ids': torch.tensor(encoding['token_type_ids']),
-            'labels': torch.tensor(labels),
+            'input_ids': torch.tensor(encoding['input_ids'], dtype=torch.long),
+            'attention_mask': torch.tensor(encoding['attention_mask'], dtype=torch.long),
+            'labels': torch.tensor(labels, dtype=torch.long),
             'relations': relations,
-            'spans': spans,
-            'num_relations': relation_count
+            'entity_spans': spans,
+            'entity_types': entity_types,  # 新增：返回实体类型信息
         }
 
 def collate_fn(batch: List[Dict[str, Any]]) -> Dict[str, torch.Tensor]:
@@ -420,12 +425,14 @@ def collate_fn(batch: List[Dict[str, Any]]) -> Dict[str, torch.Tensor]:
     attention_mask = torch.tensor([item['attention_mask'] for item in batch])
     labels = torch.tensor([item['labels'] for item in batch])
     relations = torch.stack([item['relations'] for item in batch])
-    entity_spans = torch.stack([item['spans'] for item in batch])
+    entity_spans = torch.stack([item['entity_spans'] for item in batch])
+    entity_types = torch.stack([item['entity_types'] for item in batch])  # 新增：实体类型信息
     
     return {
         'input_ids': input_ids,
         'attention_mask': attention_mask,
         'labels': labels,
         'relations': relations,
-        'entity_spans': entity_spans
+        'entity_spans': entity_spans,
+        'entity_types': entity_types,  # 新增：实体类型信息
     }
