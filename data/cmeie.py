@@ -149,6 +149,12 @@ class CMeIEDataset(Dataset):
         total_entities = len(entities)
         mapped_entities = 0
         
+        # 调试信息：输出实体列表
+        if idx < 10:  # 只对前10个样本输出详细信息
+            debug_logger.debug(f"\n样本 {idx} 的实体列表:")
+            for e in entities:
+                debug_logger.debug(f"实体: {e[0]}, 类型: {e[3]}, 位置: [{e[1]}, {e[2]}]")
+        
         # 标注实体
         for entity_text, start_idx, end_idx, entity_type in entities:
             # 找到实体的token范围
@@ -171,12 +177,31 @@ class CMeIEDataset(Dataset):
                 for i in range(token_start + 1, token_end + 1):
                     labels[i] = base_label + 1  # I
                 mapped_entities += 1
+                
+                # 调试信息：输出标签分配
+                if idx < 10:
+                    debug_logger.debug(f"实体 '{entity_text}' ({entity_type}):")
+                    debug_logger.debug(f"  Token范围: [{token_start}, {token_end}]")
+                    debug_logger.debug(f"  标签: B={base_label}, I={base_label+1}")
             else:
                 if idx < 100:  # 只记录前100个样本的详细信息
                     logger.warning(f"样本 {idx} 中的实体 '{entity_text}' ({entity_type}) 无法映射到token")
                     logger.warning(f"实体位置: [{start_idx}, {end_idx}]")
                     logger.warning(f"原文: {text}")
                     logger.warning(f"offset_mapping: {offset_mapping}")
+        
+        # 调试信息：输出最终的标签序列
+        if idx < 10:
+            debug_logger.debug(f"\n样本 {idx} 的最终标签序列:")
+            debug_logger.debug(f"标签序列: {labels}")
+            # 解释非O标签
+            for i, label in enumerate(labels):
+                if label > 0:
+                    type_id = (label - 1) // 2
+                    is_b = (label - 1) % 2 == 0
+                    entity_type = self.entity_types[type_id]
+                    tag = 'B' if is_b else 'I'
+                    debug_logger.debug(f"位置 {i}: {tag}-{entity_type} (标签值={label})")
         
         if idx < 100 or mapped_entities < total_entities:
             logger.info(f"样本 {idx} 实体标注统计: 总实体数 {total_entities}, 成功映射 {mapped_entities}")
@@ -200,41 +225,52 @@ class CMeIEDataset(Dataset):
             subject_start = spo['subject_start_idx']
             object_start = spo['object_start_idx']
             
-            # 计算实体结束位置
-            subject_end = subject_start + len(subject_text)
-            object_end = object_start + len(object_text)
-            
-            # 找到对应的token范围
+            # 找到实体的token范围
             subject_token_start = None
-            subject_token_end = None
             object_token_start = None
+            subject_token_end = None
             object_token_end = None
             
             for i, (start, end) in enumerate(offset_mapping):
                 if start <= subject_start < end:
                     subject_token_start = i
-                if start < subject_end <= end:
+                if start <= subject_start + len(subject_text) <= end:
                     subject_token_end = i
                 if start <= object_start < end:
                     object_token_start = i
-                if start < object_end <= end:
+                if start <= object_start + len(object_text) <= end:
                     object_token_end = i
             
+            # 如果找到了两个实体的token范围
             if all(x is not None for x in [subject_token_start, subject_token_end, 
                                          object_token_start, object_token_end]):
+                # 记录关系
+                relations[relation_count] = self.relation2id[predicate]
                 spans[relation_count] = torch.tensor([
                     subject_token_start, subject_token_end,
                     object_token_start, object_token_end
                 ])
-                relations[relation_count] = self.relation2id[predicate]
                 relation_count += 1
+                
+                # 调试信息：输出关系映射
+                if idx < 10:
+                    debug_logger.debug(f"\n关系: {predicate}")
+                    debug_logger.debug(f"主体: '{subject_text}' [{subject_token_start}, {subject_token_end}]")
+                    debug_logger.debug(f"客体: '{object_text}' [{object_token_start}, {object_token_end}]")
+                    debug_logger.debug(f"关系ID: {self.relation2id[predicate]}")
+        
+        # 调试信息：输出最终的关系数量
+        if idx < 10:
+            debug_logger.debug(f"\n样本 {idx} 最终处理的关系数: {relation_count}")
         
         return {
-            'input_ids': encoding['input_ids'],
-            'attention_mask': encoding['attention_mask'],
-            'labels': labels,
+            'input_ids': torch.tensor(encoding['input_ids']),
+            'attention_mask': torch.tensor(encoding['attention_mask']),
+            'token_type_ids': torch.tensor(encoding['token_type_ids']),
+            'labels': torch.tensor(labels),
             'relations': relations,
-            'entity_spans': spans
+            'spans': spans,
+            'num_relations': relation_count
         }
 
 def collate_fn(batch: List[Dict[str, Any]]) -> Dict[str, torch.Tensor]:
@@ -249,7 +285,7 @@ def collate_fn(batch: List[Dict[str, Any]]) -> Dict[str, torch.Tensor]:
     attention_mask = torch.tensor([item['attention_mask'] for item in batch])
     labels = torch.tensor([item['labels'] for item in batch])
     relations = torch.stack([item['relations'] for item in batch])
-    entity_spans = torch.stack([item['entity_spans'] for item in batch])
+    entity_spans = torch.stack([item['spans'] for item in batch])
     
     return {
         'input_ids': input_ids,
