@@ -15,6 +15,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from typing import Dict, List, Any
 from collections import defaultdict
+import torch.nn.functional as F
+from sklearn.metrics import f1_score
 
 # 设置tokenizer并行处理
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -569,48 +571,140 @@ def initialize_training(config, device):
     
     return model, tokenizer, optimizer, scheduler
 
-def calculate_class_weights(data_loader, num_classes, device):
-    """计算每个类别的权重"""
-    label_counts = torch.zeros(num_classes)
-    
-    for batch in data_loader:
-        if batch is None or 'labels' not in batch:
-            continue
-        labels = batch['labels']
-        for i in range(num_classes):
-            label_counts[i] += (labels == i).sum().item()
-    
-    # 使用逆频率作为权重，并进行归一化
-    total_samples = label_counts.sum()
-    weights = total_samples / (label_counts + 1e-8)  # 添加小值避免除零
-    weights = weights / weights.sum() * num_classes  # 归一化，使权重和等于类别数
-    
-    logger.info("\n类别权重:")
-    for i in range(num_classes):
-        logger.info(f"  类别 {i}: {weights[i]:.4f}")
-    
-    return weights.to(device)
-
 def weighted_cross_entropy_loss(logits, labels, class_weights):
-    """计算加权交叉熵损失"""
-    # 将logits转换为log概率
-    log_probs = torch.log_softmax(logits, dim=-1)
+    """计算加权交叉熵损失
     
-    # 创建one-hot标签
-    num_classes = logits.size(-1)
-    one_hot = torch.zeros_like(log_probs).scatter_(-1, labels.unsqueeze(-1), 1)
+    Args:
+        logits: 模型输出的logits，形状为 [batch_size, seq_len, num_classes]
+        labels: 真实标签，形状为 [batch_size, seq_len]
+        class_weights: 类别权重，形状为 [num_classes]
+        
+    Returns:
+        加权交叉熵损失
+    """
+    # 将logits转换为log概率
+    log_probs = F.log_softmax(logits, dim=-1)  # [batch_size, seq_len, num_classes]
     
     # 计算每个位置的损失
-    per_position_loss = -(one_hot * log_probs)  # [batch_size, seq_len, num_classes]
+    nll_loss = F.nll_loss(
+        log_probs.view(-1, log_probs.size(-1)),
+        labels.view(-1),
+        weight=class_weights,
+        ignore_index=-100,
+        reduction='none'
+    )
     
-    # 应用类别权重
-    weighted_loss = per_position_loss * class_weights.view(1, 1, -1)  # 广播权重到所有位置
+    # 计算非填充位置的掩码
+    mask = (labels != -100).float().view(-1)
     
-    # 只计算非填充位置的损失
-    mask = (labels != -100).float()
-    loss = (weighted_loss.sum(-1) * mask).sum() / (mask.sum() + 1e-8)
+    # 计算最终损失
+    loss = (nll_loss * mask).sum() / (mask.sum() + 1e-8)
     
     return loss
+
+def calculate_metrics(logits, labels):
+    """计算评估指标
+    
+    Args:
+        logits: 模型输出的logits，形状为 [batch_size, seq_len, num_classes]
+        labels: 真实标签，形状为 [batch_size, seq_len]
+        
+    Returns:
+        准确率和每个类别的F1分数
+    """
+    # 获取预测标签
+    preds = logits.argmax(dim=-1)  # [batch_size, seq_len]
+    
+    # 创建非填充位置的掩码
+    mask = (labels != -100)
+    
+    # 计算准确率
+    correct = ((preds == labels) & mask).sum().item()
+    total = mask.sum().item()
+    accuracy = correct / (total + 1e-8)
+    
+    # 收集真实标签和预测标签
+    true_labels = labels[mask].cpu().numpy()
+    pred_labels = preds[mask].cpu().numpy()
+    
+    # 计算每个类别的F1分数
+    f1_scores = f1_score(
+        true_labels,
+        pred_labels,
+        average=None,
+        zero_division=0
+    )
+    
+    # 计算宏平均F1分数
+    macro_f1 = f1_score(
+        true_labels,
+        pred_labels,
+        average='macro',
+        zero_division=0
+    )
+    
+    return accuracy, f1_scores, macro_f1
+
+def calculate_class_weights(data_loader, num_classes, device):
+    """计算每个类别的权重
+    
+    在 BIO 标注方案中：
+    - 0 表示 O 标签
+    - 对于每个实体类型 i，2i+1 表示 B 标签，2i+2 表示 I 标签
+    """
+    # 统计每个标签的样本数
+    label_counts = torch.zeros(num_classes, device=device)
+    total_samples = 0
+    
+    for batch in tqdm(data_loader, desc="计算类别权重"):
+        labels = batch['labels']  # [batch_size, seq_len]
+        # 统计每个标签的出现次数
+        for i in range(num_classes):
+            label_counts[i] += (labels == i).sum().item()
+        total_samples += labels.numel()
+    
+    # 计算标签权重
+    weights = torch.zeros(num_classes, device=device)
+    
+    # 处理 O 标签
+    if label_counts[0] > 0:
+        weights[0] = total_samples / (3 * label_counts[0])  # O 标签权重
+    else:
+        weights[0] = 1.0
+    
+    # 处理实体标签
+    num_entity_types = (num_classes - 1) // 2
+    for i in range(num_entity_types):
+        b_idx = 2 * i + 1  # B 标签索引
+        i_idx = 2 * i + 2  # I 标签索引
+        
+        # B 标签权重
+        if label_counts[b_idx] > 0:
+            weights[b_idx] = total_samples / (3 * num_entity_types * label_counts[b_idx])
+        else:
+            weights[b_idx] = 1.0
+            
+        # I 标签权重
+        if label_counts[i_idx] > 0:
+            weights[i_idx] = total_samples / (3 * num_entity_types * label_counts[i_idx])
+        else:
+            weights[i_idx] = 1.0
+    
+    # 归一化权重，使其平均值为1
+    weights = weights * (num_classes / weights.sum())
+    
+    # 输出标签统计信息
+    logger.info("\n标签分布统计:")
+    logger.info(f"O标签 (0): {label_counts[0]:.0f} 样本, 权重: {weights[0]:.4f}")
+    for i in range(num_entity_types):
+        b_idx = 2 * i + 1
+        i_idx = 2 * i + 2
+        entity_type = data_loader.dataset.entity_types[i]
+        logger.info(f"{entity_type}:")
+        logger.info(f"  B标签 ({b_idx}): {label_counts[b_idx]:.0f} 样本, 权重: {weights[b_idx]:.4f}")
+        logger.info(f"  I标签 ({i_idx}): {label_counts[i_idx]:.0f} 样本, 权重: {weights[i_idx]:.4f}")
+    
+    return weights
 
 def train_epoch(model, train_loader, optimizer, scheduler, device, epoch, config):
     """训练一个epoch"""
