@@ -22,37 +22,74 @@ def calculate_ner_metrics(predictions: List[np.ndarray],
     pred_flat = np.concatenate([p.flatten() for p in predictions])
     label_flat = np.concatenate([l.flatten() for l in labels])
     
+    # 将BIO标签映射到实体类型
+    def map_to_entity_type(label):
+        if label == 0:  # O标签
+            return -1  # 表示不是实体
+        return (label - 1) // 2  # 每个实体类型有两个标签(B和I)
+    
+    # 转换预测和真实标签
+    pred_types = np.array([map_to_entity_type(p) for p in pred_flat])
+    label_types = np.array([map_to_entity_type(l) for l in label_flat])
+    
+    # 只考虑非O标签的位置
+    mask = label_types != -1
+    pred_types = pred_types[mask]
+    label_types = label_types[mask]
+    
     # 记录标签分布
-    debug_logger.log_distribution("NER标签分布", label_flat, labels=entity_types)
-    debug_logger.log_distribution("NER预测分布", pred_flat, labels=entity_types)
+    debug_logger.debug("\n标签分布统计:")
+    debug_logger.debug("真实标签分布:")
+    for i, entity_type in enumerate(entity_types):
+        count = np.sum(label_types == i)
+        debug_logger.debug(f"  {entity_type}: {count}")
+    
+    debug_logger.debug("\n预测标签分布:")
+    for i, entity_type in enumerate(entity_types):
+        count = np.sum(pred_types == i)
+        debug_logger.debug(f"  {entity_type}: {count}")
+    
+    # 如果没有实体，返回全0指标
+    if len(label_types) == 0:
+        return {
+            'precision': 0.0,
+            'recall': 0.0,
+            'f1': 0.0,
+            'entity_metrics': {et: {'precision': 0.0, 'recall': 0.0, 'f1': 0.0} 
+                             for et in entity_types}
+        }
     
     # 计算各项指标
     precision, recall, f1, support = precision_recall_fscore_support(
-        label_flat,
-        pred_flat,
+        label_types,
+        pred_types,
         average='macro',
-        labels=list(range(len(entity_types)))  # 确保包含所有可能的标签
+        labels=list(range(len(entity_types)))  # 实体类型的索引
     )
     
     # 计算每个类别的指标
     class_precision, class_recall, class_f1, _ = precision_recall_fscore_support(
-        label_flat,
-        pred_flat,
+        label_types,
+        pred_types,
         average=None,
-        labels=list(range(len(entity_types)))  # 确保包含所有可能的标签
+        labels=list(range(len(entity_types)))  # 实体类型的索引
     )
     
     # 计算混淆矩阵
     conf_mat = confusion_matrix(
-        label_flat,
-        pred_flat,
-        labels=list(range(len(entity_types)))  # 确保包含所有可能的标签
+        label_types,
+        pred_types,
+        labels=list(range(len(entity_types)))  # 实体类型的索引
     )
     
     # 记录混淆矩阵
-    debug_logger.debug("\nNER混淆矩阵:")
+    debug_logger.debug("\n实体类型混淆矩阵:")
+    debug_logger.debug("预测 →")
+    debug_logger.debug("实际 ↓")
+    header = "     " + " ".join(f"{et:10}" for et in entity_types)
+    debug_logger.debug(header)
     for i, row in enumerate(conf_mat):
-        debug_logger.debug(f"  {entity_types[i]}: {row.tolist()}")
+        debug_logger.debug(f"{entity_types[i]:5}" + " ".join(f"{x:10d}" for x in row))
     
     # 整理每个实体类型的指标
     entity_metrics = {}
@@ -62,6 +99,10 @@ def calculate_ner_metrics(predictions: List[np.ndarray],
             'recall': class_recall[i],
             'f1': class_f1[i]
         }
+        debug_logger.debug(f"\n{entity_type}类型的指标:")
+        debug_logger.debug(f"  Precision: {class_precision[i]:.4f}")
+        debug_logger.debug(f"  Recall: {class_recall[i]:.4f}")
+        debug_logger.debug(f"  F1: {class_f1[i]:.4f}")
     
     return {
         'precision': precision,
