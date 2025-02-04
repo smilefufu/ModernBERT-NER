@@ -337,17 +337,15 @@ def format_metrics(metrics: Dict) -> str:
     
     return "\n".join(output)
 
-def compute_spo_metrics(predictions: List[List[Dict]], 
-                       labels: List[List[Dict]], 
-                       id2predicate: Dict[int, str],
-                       id2entity_type: Dict[int, str]) -> Dict:
+def compute_spo_metrics(
+    predictions: List[List[Dict]], 
+    labels: List[List[Dict]]
+) -> Dict:
     """计算SPO三元组的评估指标
     
     Args:
-        predictions: 预测的SPO三元组列表
-        labels: 真实的SPO三元组列表
-        id2predicate: 关系ID到名称的映射
-        id2entity_type: 实体类型ID到名称的映射
+        predictions: 预测的SPO三元组列表的列表
+        labels: 真实的SPO三元组列表的列表
         
     Returns:
         包含precision, recall, f1等指标的字典
@@ -355,9 +353,13 @@ def compute_spo_metrics(predictions: List[List[Dict]],
     def normalize_spo(spo: Dict) -> Tuple:
         """将SPO三元组转换为可比较的格式"""
         return (
-            spo['predicate'],
-            (spo['subject']['type'], spo['subject']['start'], spo['subject']['end']),
-            (spo['object']['type'], spo['object']['start'], spo['object']['end'])
+            spo.get('predicate', ''),
+            spo.get('subject', {}).get('type', ''),
+            spo.get('subject', {}).get('start', -1),
+            spo.get('subject', {}).get('end', -1),
+            spo.get('object', {}).get('type', ''),
+            spo.get('object', {}).get('start', -1),
+            spo.get('object', {}).get('end', -1)
         )
     
     # 统计正确的预测数、总预测数和总标签数
@@ -381,98 +383,23 @@ def compute_spo_metrics(predictions: List[List[Dict]],
     recall = correct / total_gold if total_gold > 0 else 0.0
     f1 = 2 * precision * recall / (precision + recall) if precision + recall > 0 else 0.0
     
-    # 按关系类型统计
-    metrics_by_relation = {}
-    for rel_id, rel_name in id2predicate.items():
-        rel_correct = 0
-        rel_pred = 0
-        rel_gold = 0
-        
-        for pred_spos, gold_spos in zip(predictions, labels):
-            # 过滤出当前关系的三元组
-            pred_set = {normalize_spo(spo) for spo in pred_spos if spo['predicate'] == rel_id}
-            gold_set = {normalize_spo(spo) for spo in gold_spos if spo['predicate'] == rel_id}
-            
-            rel_correct += len(pred_set & gold_set)
-            rel_pred += len(pred_set)
-            rel_gold += len(gold_set)
-        
-        # 计算当前关系的指标
-        rel_precision = rel_correct / rel_pred if rel_pred > 0 else 0.0
-        rel_recall = rel_correct / rel_gold if rel_gold > 0 else 0.0
-        rel_f1 = 2 * rel_precision * rel_recall / (rel_precision + rel_recall) if rel_precision + rel_recall > 0 else 0.0
-        
-        metrics_by_relation[rel_name] = {
-            'precision': rel_precision,
-            'recall': rel_recall,
-            'f1': rel_f1,
-            'support': rel_gold
-        }
-    
-    # 按实体类型统计
-    metrics_by_entity = {}
-    for type_id, type_name in id2entity_type.items():
-        type_correct = 0
-        type_pred = 0
-        type_gold = 0
-        
-        for pred_spos, gold_spos in zip(predictions, labels):
-            # 提取当前类型的实体
-            pred_entities = set()
-            gold_entities = set()
-            
-            for spo in pred_spos:
-                if spo['subject']['type'] == type_id:
-                    pred_entities.add((spo['subject']['start'], spo['subject']['end']))
-                if spo['object']['type'] == type_id:
-                    pred_entities.add((spo['object']['start'], spo['object']['end']))
-            
-            for spo in gold_spos:
-                if spo['subject']['type'] == type_id:
-                    gold_entities.add((spo['subject']['start'], spo['subject']['end']))
-                if spo['object']['type'] == type_id:
-                    gold_entities.add((spo['object']['start'], spo['object']['end']))
-            
-            type_correct += len(pred_entities & gold_entities)
-            type_pred += len(pred_entities)
-            type_gold += len(gold_entities)
-        
-        # 计算当前实体类型的指标
-        type_precision = type_correct / type_pred if type_pred > 0 else 0.0
-        type_recall = type_correct / type_gold if type_gold > 0 else 0.0
-        type_f1 = 2 * type_precision * type_recall / (type_precision + type_recall) if type_precision + type_recall > 0 else 0.0
-        
-        metrics_by_entity[type_name] = {
-            'precision': type_precision,
-            'recall': type_recall,
-            'f1': type_f1,
-            'support': type_gold
-        }
-    
     # 记录详细指标
-    logger = logging.getLogger(__name__)
-    logger.info("\n关系抽取指标:")
-    for rel_name, metrics in metrics_by_relation.items():
-        logger.info(f"{rel_name}:")
-        logger.info(f"  Precision: {metrics['precision']:.4f}")
-        logger.info(f"  Recall: {metrics['recall']:.4f}")
-        logger.info(f"  F1: {metrics['f1']:.4f}")
-        logger.info(f"  Support: {metrics['support']}")
-    
-    logger.info("\n实体识别指标:")
-    for type_name, metrics in metrics_by_entity.items():
-        logger.info(f"{type_name}:")
-        logger.info(f"  Precision: {metrics['precision']:.4f}")
-        logger.info(f"  Recall: {metrics['recall']:.4f}")
-        logger.info(f"  F1: {metrics['f1']:.4f}")
-        logger.info(f"  Support: {metrics['support']}")
+    logger = debug_logger
+    logger.info("\nSPO三元组指标:")
+    logger.info(f"  总体精确率: {precision:.4f}")
+    logger.info(f"  总体召回率: {recall:.4f}")
+    logger.info(f"  总体F1分数: {f1:.4f}")
+    logger.info(f"  总预测数: {total_pred}")
+    logger.info(f"  总标签数: {total_gold}")
+    logger.info(f"  正确预测数: {correct}")
     
     return {
         'precision': precision,
         'recall': recall,
         'f1': f1,
-        'relation_metrics': metrics_by_relation,
-        'entity_metrics': metrics_by_entity
+        'total_pred': total_pred,
+        'total_gold': total_gold,
+        'correct': correct
     }
 
 def format_spo_metrics(metrics: Dict) -> str:

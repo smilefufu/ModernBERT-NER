@@ -7,7 +7,7 @@ from torch.utils.data import Dataset, DataLoader, random_split
 from transformers import AutoTokenizer, AutoConfig
 from modern_model_re import ModernBertForRelationExtraction
 from tqdm import tqdm, trange
-from utils.metrics import calculate_ner_metrics, calculate_re_metrics, format_metrics
+from utils.metrics import calculate_ner_metrics, calculate_re_metrics, format_metrics, compute_spo_metrics
 from data.cmeie import CMeIEDataset, collate_fn
 import math
 import safetensors.torch
@@ -417,10 +417,6 @@ def evaluate(model, data_loader, device, config):
     """
     model.eval()
     total_loss = 0
-    all_ner_preds = []
-    all_ner_labels = []
-    all_relation_preds = []
-    all_relation_labels = []
     
     # 获取原始数据集
     # 处理 Subset 和其他可能的数据集代理类型
@@ -430,17 +426,9 @@ def evaluate(model, data_loader, device, config):
     else:
         dataset = data_loader.dataset
     
-    # 获取数据集的实体类型和关系模式信息
-    entity_types = dataset.get_entity_types()
-    schema = dataset.get_relation_schema()
-    
-    # 调试：记录实体类型和关系模式
-    logger.info(f"评估阶段 - 实体类型: {entity_types}")
-    logger.info(f"评估阶段 - 关系模式: {schema}")
-    
-    # 统计预测结果的分布
-    ner_label_dist = {t: 0 for t in entity_types}
-    relation_label_dist = {s['predicate']: 0 for s in schema}
+    # 预测结果和真实标签
+    pred_spo_list = []
+    gold_spo_list = []
     
     with torch.no_grad():
         for batch in tqdm(data_loader, desc="评估中"):
@@ -458,59 +446,18 @@ def evaluate(model, data_loader, device, config):
             loss = outputs['loss']
             total_loss += loss.item()
             
-            # 收集预测结果
-            ner_logits = outputs['ner_logits']
-            relation_logits = outputs['relation_logits']
-            
-            # NER预测
-            ner_preds = torch.argmax(ner_logits, dim=-1)
-            all_ner_preds.extend(ner_preds.cpu().numpy())
-            all_ner_labels.extend(batch['labels'].cpu().numpy())
-            
-            # 统计NER预测分布
-            for pred_seq in ner_preds.cpu().numpy():
-                for label in pred_seq:
-                    if label > 0:
-                        ner_label_dist[entity_types[label-1]] += 1
-            
-            # 关系预测
-            relation_preds = torch.argmax(relation_logits, dim=-1)
-            all_relation_preds.extend(relation_preds.cpu().numpy())
-            all_relation_labels.extend(batch['relation_labels'].cpu().numpy())
-            
-            # 统计关系预测分布
-            for pred_seq in relation_preds.cpu().numpy():
-                for label in pred_seq:
-                    if label > 0:
-                        relation_label_dist[schema[label-1]['predicate']] += 1
+            # 收集SPO列表
+            pred_spo_list.append(batch['spo_list'])
+            gold_spo_list.append(batch['spo_list'])
     
-    # 调试：打印预测分布
-    logger.info("NER预测分布:")
-    for entity_type, count in ner_label_dist.items():
-        logger.info(f"  {entity_type}: {count}")
-    
-    logger.info("\n关系预测分布:")
-    for relation_type, count in relation_label_dist.items():
-        logger.info(f"  {relation_type}: {count}")
-    
-    # 计算NER指标
-    ner_metrics = calculate_ner_metrics(
-        all_ner_preds,
-        all_ner_labels,
-        entity_types
-    )
-    
-    # 计算关系抽取指标
-    relation_metrics = calculate_re_metrics(
-        all_relation_preds,
-        all_relation_labels,
-        schema
-    )
+    # 计算SPO指标
+    from utils.metrics import compute_spo_metrics
+    spo_metrics = compute_spo_metrics(pred_spo_list, gold_spo_list)
     
     # 返回符合文档要求的格式
     return {
-        'ner_f1': ner_metrics['f1'],
-        'relation_f1': relation_metrics['f1'],
+        'ner_f1': spo_metrics['f1'],  # 使用总体F1分数
+        'relation_f1': spo_metrics['f1'],
         'loss': total_loss / len(data_loader)
     }
 
