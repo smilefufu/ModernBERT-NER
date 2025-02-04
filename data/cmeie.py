@@ -88,11 +88,51 @@ class CMeIEDataset(Dataset):
         self.spo2id = {pattern: idx for idx, pattern in enumerate(self.spo_patterns)}
         self.id2spo = {idx: pattern for pattern, idx in self.spo2id.items()}
         
-        logger.info(f"SPO关系模式映射:")
+        logger.info(f"实体类型映射:")
+        for entity_type, idx in self.entity_type2id.items():
+            logger.info(f"  [{idx}] {entity_type}")
+        
+        logger.info(f"\nSPO关系模式映射:")
         for pattern, idx in self.spo2id.items():
             subject_type, predicate, object_type = pattern
             logger.info(f"  [{idx}] {subject_type} - {predicate} -> {object_type}")
-
+    
+    @property
+    def num_entity_types(self) -> int:
+        """获取实体类型数量"""
+        return len(self.entity_type2id)
+    
+    @property
+    def num_relation_types(self) -> int:
+        """获取关系类型数量"""
+        return len(self.spo2id)
+    
+    def get_entity_types(self) -> List[str]:
+        """获取所有实体类型列表
+        
+        Returns:
+            按ID排序的实体类型列表
+        """
+        return [self.id2entity_type[i] for i in range(self.num_entity_types)]
+    
+    def get_relation_schema(self) -> List[Dict]:
+        """获取关系模式列表
+        
+        Returns:
+            关系模式列表，每个模式包含：
+            - subject_type: str, 主体实体类型
+            - predicate: str, 关系类型
+            - object_type: str, 客体实体类型
+        """
+        return [
+            {
+                'subject_type': self.id2spo[i][0],
+                'predicate': self.id2spo[i][1],
+                'object_type': self.id2spo[i][2]
+            }
+            for i in range(self.num_relation_types)
+        ]
+    
     def load_schema(self, schema_file: str) -> List[Dict]:
         """加载schema文件
         

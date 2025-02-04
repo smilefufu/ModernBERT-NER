@@ -422,6 +422,18 @@ def evaluate(model, data_loader, device, config):
     all_relation_preds = []
     all_relation_labels = []
     
+    # 获取原始数据集
+    # 处理 Subset 和其他可能的数据集代理类型
+    if hasattr(data_loader.dataset, 'dataset'):
+        # 对于 Subset 类型的数据集
+        dataset = data_loader.dataset.dataset
+    else:
+        dataset = data_loader.dataset
+    
+    # 获取数据集的实体类型和关系模式信息
+    entity_types = dataset.get_entity_types()
+    schema = dataset.get_relation_schema()
+    
     with torch.no_grad():
         for batch in tqdm(data_loader, desc="评估中"):
             # 将需要的tensor数据移动到设备上
@@ -456,14 +468,14 @@ def evaluate(model, data_loader, device, config):
     ner_metrics = calculate_ner_metrics(
         all_ner_preds,
         all_ner_labels,
-        config['model']['entity_types']
+        entity_types
     )
     
     # 计算关系抽取指标
     relation_metrics = calculate_re_metrics(
         all_relation_preds,
         all_relation_labels,
-        load_schema(config['data']['schema_file'])
+        schema
     )
     
     # 返回符合文档要求的格式
