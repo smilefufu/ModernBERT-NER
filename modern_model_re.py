@@ -25,8 +25,8 @@ class ModernBertForRelationExtraction(PreTrainedModel):
         hidden_size = config.hidden_size
         
         # SPO 预测层
-        self.spo_pattern_classifier = nn.Linear(hidden_size, config.num_spo_patterns)
-        self.entity_type_classifier = nn.Linear(hidden_size, config.num_entity_types)
+        self.spo_pattern_classifier = nn.Linear(hidden_size, config.num_spo_patterns + 1)  # 输出维度为 num_spo_patterns + 1，0 表示无关系
+        self.entity_type_classifier = nn.Linear(hidden_size, config.num_entity_types + 1)  # 输出维度为 num_entity_types + 1，0 表示非实体
         self.span_classifier = nn.Linear(hidden_size, 2)  # start/end
         
         # 损失函数权重
@@ -59,8 +59,8 @@ class ModernBertForRelationExtraction(PreTrainedModel):
         Returns:
             dict:
                 - loss: torch.FloatTensor 总损失
-                - ner_logits: torch.FloatTensor [batch_size, seq_len, num_entity_types] NER预测
-                - relation_logits: torch.FloatTensor [batch_size, seq_len, num_spo_patterns] 关系预测
+                - ner_logits: torch.FloatTensor [batch_size, seq_len, num_entity_types+1] NER预测
+                - relation_logits: torch.FloatTensor [batch_size, seq_len, num_spo_patterns+1] 关系预测
         """
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
         
@@ -74,10 +74,10 @@ class ModernBertForRelationExtraction(PreTrainedModel):
         sequence_output = outputs[0]  # [batch_size, seq_len, hidden_size]
         
         # NER预测
-        ner_logits = self.entity_type_classifier(sequence_output)  # [batch_size, seq_len, num_entity_types]
+        ner_logits = self.entity_type_classifier(sequence_output)  # [batch_size, seq_len, num_entity_types+1]
         
         # 关系预测
-        relation_logits = self.spo_pattern_classifier(sequence_output)  # [batch_size, seq_len, num_spo_patterns]
+        relation_logits = self.spo_pattern_classifier(sequence_output)  # [batch_size, seq_len, num_spo_patterns+1]
         
         # 计算损失
         total_loss = None

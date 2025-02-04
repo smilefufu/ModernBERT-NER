@@ -434,6 +434,14 @@ def evaluate(model, data_loader, device, config):
     entity_types = dataset.get_entity_types()
     schema = dataset.get_relation_schema()
     
+    # 调试：记录实体类型和关系模式
+    logger.info(f"评估阶段 - 实体类型: {entity_types}")
+    logger.info(f"评估阶段 - 关系模式: {schema}")
+    
+    # 统计预测结果的分布
+    ner_label_dist = {t: 0 for t in entity_types}
+    relation_label_dist = {s['predicate']: 0 for s in schema}
+    
     with torch.no_grad():
         for batch in tqdm(data_loader, desc="评估中"):
             # 将需要的tensor数据移动到设备上
@@ -459,10 +467,31 @@ def evaluate(model, data_loader, device, config):
             all_ner_preds.extend(ner_preds.cpu().numpy())
             all_ner_labels.extend(batch['labels'].cpu().numpy())
             
+            # 统计NER预测分布
+            for pred_seq in ner_preds.cpu().numpy():
+                for label in pred_seq:
+                    if label > 0:
+                        ner_label_dist[entity_types[label-1]] += 1
+            
             # 关系预测
             relation_preds = torch.argmax(relation_logits, dim=-1)
             all_relation_preds.extend(relation_preds.cpu().numpy())
             all_relation_labels.extend(batch['relation_labels'].cpu().numpy())
+            
+            # 统计关系预测分布
+            for pred_seq in relation_preds.cpu().numpy():
+                for label in pred_seq:
+                    if label > 0:
+                        relation_label_dist[schema[label-1]['predicate']] += 1
+    
+    # 调试：打印预测分布
+    logger.info("NER预测分布:")
+    for entity_type, count in ner_label_dist.items():
+        logger.info(f"  {entity_type}: {count}")
+    
+    logger.info("\n关系预测分布:")
+    for relation_type, count in relation_label_dist.items():
+        logger.info(f"  {relation_type}: {count}")
     
     # 计算NER指标
     ner_metrics = calculate_ner_metrics(
