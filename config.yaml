@@ -1,9 +1,6 @@
 # 模型配置
 model:
   model_name_or_path: "/Users/fufu/Downloads/modern_bert_multilingual"
-  num_labels: 3
-  num_relations: 53
-  entity_types: ["疾病", "症状", "检查", "手术", "药物", "其他治疗", "部位", "社会学", "流行病学", "预后", "其他"]
   use_cache: false
 
 # 训练配置
@@ -11,7 +8,7 @@ training:
   # 基础训练参数
   batch_size: 2
   eval_batch_size: 2
-  num_train_epochs: 10
+  num_epochs: 10
   gradient_accumulation_steps: 16  # 增加梯度累积步数，相当于 batch_size=32
   
   # 优化器参数
@@ -25,7 +22,7 @@ training:
   
   # 其他配置
   logging_steps: 100
-  eval_ratio: 0.1
+  eval_ratio: 0.2
   random_seed: 42
   freeze_backbone: false
 

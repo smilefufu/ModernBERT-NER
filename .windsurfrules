@@ -2,3 +2,5 @@
 2. 本项目目标是使用 ModernBERT 来训练一个医学文本实体关系提取的模型。
 3. ModernBERT 是一个对 BERT 模型的改进，关于它的介绍在 docs/modernbert.md 中。
 4. 模型设计相关内容在 docs/data_format_spec.md 中。
+5. 代码修改时，尤其是对于输入输出的修改，注意要遵守docs/architecture.md中的约定。如果文档中的约定不合理，或需求有变化，注意提醒我，我们重新讨论和约定。
+6. 本项目用的模型不是 bert-base-chinese ！！！使用的模型在 config.yaml 中有配置！！！

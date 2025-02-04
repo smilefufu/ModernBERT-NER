@@ -1,6 +1,6 @@
 # ModernBERT 医学实体关系抽取项目
 
-本项目使用 ModernBERT 来训练一个医学文本实体关系抽取的模型。
+本项目使用 ModernBERT 的多语言改良版本来训练一个医学文本实体关系抽取的模型。
 
 ## ModernBERT 模型特点
 
@@ -52,24 +52,22 @@ ModernBERT 是对传统 BERT 模型的现代化改进，引入了多项先进的
 
 为了实现医学文本的实体关系提取任务，我们在原始 ModernBERT 模型的基础上添加了以下组件：
 
-1. NER 分类头：
+1. 实体范围预测头：
    ```
-   - ner_head.weight
-   - ner_head.bias
+   - span_classifier.weight
+   - span_classifier.bias
    ```
 
 2. 实体类型分类头：
    ```
-   - entity_type_head.weight
-   - entity_type_head.bias
+   - entity_type_classifier.weight
+   - entity_type_classifier.bias
    ```
 
-3. 关系抽取组件：
+3. SPO关系模式分类头：
    ```
-   - relation_layer_norm.weight
-   - relation_layer_norm.bias
-   - relation_head.weight
-   - relation_head.bias
+   - spo_pattern_classifier.weight
+   - spo_pattern_classifier.bias
    ```
 
 这些组件在加载预训练权重时会显示为"缺少的键"，这是正常的，因为它们是我们新增的任务特定组件，会在训练过程中从随机初始化开始学习。
@@ -91,27 +89,11 @@ ModernBERT 是对传统 BERT 模型的现代化改进，引入了多项先进的
 
 这些组件在加载模型时会显示为"未使用的键"，这是正常的，因为我们只使用 ModernBERT 的基础编码器部分，而不需要这些预训练任务相关的组件。
 
-## 项目配置说明
-
-为了避免与 ModernBERT 的固定参数冲突，项目配置文件 (`config.yaml`) 只包含：
-
-1. **任务相关参数**
-   - `num_labels`: NER标签数量
-   - `num_relations`: 关系类型数量
-   - `entity_types`: 实体类型列表
-
-2. **训练相关参数**
-   - 训练超参数（学习率、batch size等）
-   - 数据配置
-   - 输出和评估配置
-   - 设备配置
-
 ## 注意事项
 
 1. **模型加载**
    - 模型的固定参数会从预训练模型的 `config.json` 中自动读取
    - 不要在配置文件中覆盖模型的固定参数
-   - 使用 `ignore_mismatched_sizes=True` 允许任务特定层的大小不匹配
 
 2. **序列长度**
    - 虽然模型支持最大 8192 tokens，但建议根据实际需求和硬件限制设置 `max_seq_length`

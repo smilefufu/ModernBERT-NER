@@ -5,6 +5,7 @@ import os
 import torch
 import yaml
 import logging
+import json
 from transformers import AutoTokenizer, AutoConfig
 from modern_model_re import ModernBertForRelationExtraction
 
@@ -133,6 +134,19 @@ def load_model(model_path, device='cuda' if torch.cuda.is_available() else 'cpu'
     
     return model, tokenizer, device
 
+def load_schema(schema_file):
+    """从schema文件中加载实体类型和关系类型"""
+    entity_types = set()
+    with open(schema_file, 'r', encoding='utf-8') as f:
+        for line in f:
+            schema = json.loads(line.strip())
+            entity_types.add(schema['subject_type'])
+            if isinstance(schema['object_type'], dict):
+                entity_types.add(schema['object_type']['@value'])
+            else:
+                entity_types.add(schema['object_type'])
+    return sorted(list(entity_types))
+
 def predict(text, model, tokenizer, device, max_length=512):
     """对输入文本进行推理"""
     model.eval()
@@ -181,22 +195,20 @@ def extract_entities_and_relations(outputs, text, tokenizer, offset_mapping, inp
     logger.debug(f"原始文本: {text}")
     
     # 获取NER标签
-    ner_logits = outputs.ner_logits[0]  # [seq_len, num_labels]
-    ner_labels = torch.argmax(ner_logits, dim=-1)  # [seq_len]
-    
-    # 获取实际的 tokens
-    tokens = tokenizer.convert_ids_to_tokens(input_ids[0])
-    predictions = ner_labels.cpu().numpy()
+    ner_logits = outputs.get('ner_logits')
+    if ner_logits is not None:
+        labels = torch.argmax(ner_logits, dim=-1)  # [seq_len]
+         
+        # 将预测结果转换为实体
+        predictions = labels.cpu().numpy()
     
     logger.debug("\nToken 和标签对应关系:")
     for i, (token, pred) in enumerate(zip(tokens, predictions)):
         logger.debug(f"位置 {i}: Token='{token}' (长度={len(token)}), 标签={pred}")
     
-    # 实体类型列表
-    entity_types = [
-        "疾病", "症状", "检查", "手术", "药物", "其他治疗", 
-        "部位", "社会学", "流行病学", "预后", "其他"
-    ]
+    # 从schema中获取实体类型列表
+    schema_file = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', '53_schemas.jsonl')
+    entity_types = load_schema(schema_file)
     
     entities = []
     current_entities = {}  # 每种类型的当前实体

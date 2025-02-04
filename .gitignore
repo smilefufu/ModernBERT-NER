@@ -42,3 +42,4 @@ outputs/
 checkpoints/
 logs/
 wandb/
+tmp/
