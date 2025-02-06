@@ -5,26 +5,14 @@ model:
 
 # 训练配置
 training:
-  # 基础训练参数
   batch_size: 2
-  eval_batch_size: 2
   num_epochs: 10
-  gradient_accumulation_steps: 16  # 增加梯度累积步数，相当于 batch_size=32
-  
-  # 优化器参数
-  learning_rate: 5e-6  # 降低学习率
+  learning_rate: 5e-6
   weight_decay: 0.01
-  max_grad_norm: 10.0  # 保持梯度裁剪阈值
-  warmup_ratio: 0.35  # 增加预热比例
-  
-  # 损失函数配置
-  use_weighted_loss: true  # 使用静态类别权重
-  
-  # 其他配置
-  logging_steps: 100
+  max_grad_norm: 10.0
+  warmup_ratio: 0.35
   eval_ratio: 0.2
   random_seed: 42
-  freeze_backbone: false
 
 # 数据配置
 data:
@@ -35,10 +23,3 @@ data:
 # 输出配置
 output:
   output_dir: "./outputs"
-  save_checkpoint_epochs: 5
-  plot_metrics:
-    enabled: true
-
-# 评估配置
-evaluation:
-  eval_steps: 100

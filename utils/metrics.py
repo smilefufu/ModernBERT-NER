@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Set
 from sklearn.metrics import precision_recall_fscore_support, confusion_matrix
 from utils.debug_utils import debug_logger
 
@@ -350,56 +350,39 @@ def compute_spo_metrics(
     Returns:
         包含precision, recall, f1等指标的字典
     """
-    def normalize_spo(spo: Dict) -> Tuple:
-        """将SPO三元组转换为可比较的格式"""
-        return (
-            spo.get('predicate', ''),
-            spo.get('subject', {}).get('type', ''),
-            spo.get('subject', {}).get('start', -1),
-            spo.get('subject', {}).get('end', -1),
-            spo.get('object', {}).get('type', ''),
-            spo.get('object', {}).get('start', -1),
-            spo.get('object', {}).get('end', -1)
-        )
+    def preprocess_spo(spo_list: List[List[Dict]]) -> Set[Tuple]:
+        processed_spos = set()
+        for batch_spos in spo_list:
+            for spo in batch_spos:
+                processed_spos.add((
+                    spo['predicate'],
+                    spo['subject']['type'],
+                    spo['subject']['start'],
+                    spo['subject']['end'],
+                    spo['object']['type'],
+                    spo['object']['start'],
+                    spo['object']['end']
+                ))
+        return processed_spos
     
-    # 统计正确的预测数、总预测数和总标签数
-    correct = 0
-    total_pred = 0
-    total_gold = 0
+    # 处理预测和标签
+    pred_spos = preprocess_spo(predictions)
+    true_spos = preprocess_spo(labels)
     
-    # 按样本统计指标
-    for pred_spos, gold_spos in zip(predictions, labels):
-        # 转换为可比较的格式
-        pred_set = {normalize_spo(spo) for spo in pred_spos}
-        gold_set = {normalize_spo(spo) for spo in gold_spos}
-        
-        # 统计正确的预测
-        correct += len(pred_set & gold_set)
-        total_pred += len(pred_set)
-        total_gold += len(gold_set)
+    # 计算指标
+    tp = len(pred_spos & true_spos)
+    fp = len(pred_spos - true_spos)
+    fn = len(true_spos - pred_spos)
     
-    # 计算精确率、召回率和F1
-    precision = correct / total_pred if total_pred > 0 else 0.0
-    recall = correct / total_gold if total_gold > 0 else 0.0
-    f1 = 2 * precision * recall / (precision + recall) if precision + recall > 0 else 0.0
-    
-    # 记录详细指标
-    logger = debug_logger
-    logger.info("\nSPO三元组指标:")
-    logger.info(f"  总体精确率: {precision:.4f}")
-    logger.info(f"  总体召回率: {recall:.4f}")
-    logger.info(f"  总体F1分数: {f1:.4f}")
-    logger.info(f"  总预测数: {total_pred}")
-    logger.info(f"  总标签数: {total_gold}")
-    logger.info(f"  正确预测数: {correct}")
+    # 计算精确率、召回率和F1分数
+    precision = tp / (tp + fp) if (tp + fp) > 0 else 0
+    recall = tp / (tp + fn) if (tp + fn) > 0 else 0
+    f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
     
     return {
         'precision': precision,
         'recall': recall,
-        'f1': f1,
-        'total_pred': total_pred,
-        'total_gold': total_gold,
-        'correct': correct
+        'f1': f1
     }
 
 def format_spo_metrics(metrics: Dict) -> str:

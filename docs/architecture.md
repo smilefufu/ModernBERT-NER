@@ -1,235 +1,152 @@
-# ModernBERT-RE 项目架构设计
+# ModernBERT 医学实体关系提取模型架构设计
 
-## 1. 项目概述
+## 1. 总体设计理念
+本项目旨在构建一个端到端的医学文本实体关系提取模型，核心目标是直接从文本中预测语义三元组（Subject-Predicate-Object, SPO）。
 
-本项目使用 ModernBERT 实现医疗文本的实体关系抽取任务。项目采用端到端的 SPO 三元组抽取方案，直接从文本中提取主实体(Subject)、关系类型(Predicate)和客实体(Object)。
+## 2. 模型架构
+### 2.1 基础预训练模型
+- 使用 ModernBERT 作为特征提取器
+- 模型配置在 `config.yaml` 中定义
 
-## 2. 核心模块
+### 2.2 端到端 SPO 提取模块
+#### 2.2.1 关系模式预测
+- 直接预测文本中的关系模式
+- 输出维度：关系模式数量 + 1（0 表示无关系）
+- 使用多标签分类方法
 
-### 2.1 模型层 (modern_model_re.py)
+#### 2.2.2 实体跨度识别
+- 联合预测主语和宾语的起始、结束位置
+- 使用二分类（是/否）确定实体边界
+- 不再单独进行实体类型分类
 
-#### 职责
-- 基于 ModernBERT 的模型结构定义
-- 端到端的 SPO 三元组抽取
-- 损失计算和预测输出
+## 3. 数据处理流程
+### 3.1 输入表示
+- 使用 ModernBERT 分词器
+- 固定最大序列长度
+- 保留原始实体类型信息
 
-#### 关键接口
-```python
-class ModernBertForRelationExtraction:
-    def forward(self, 
-                input_ids,            # 输入token的ID序列
-                attention_mask,       # 注意力掩码
-                spo_list=None,        # 训练时的SPO标注
-                **kwargs
-    ) -> Dict[str, torch.Tensor]:
-        """模型前向传播"""
-        return {
-            'spo_predictions': List[Dict],  # 预测的SPO三元组列表
-            'loss': tensor                  # 总损失（训练时）
-        }
-```
+### 3.2 标签映射
+- 关系模式映射：
+  - 从 1 开始编号
+  - 0 预留给"无关系"
+- 不再进行实体类型的显式映射
 
-### 2.2 数据层 (data/cmeie.py)
+## 4. 训练策略
+### 4.1 损失函数
+- SPO 模式损失：交叉熵
+- 实体跨度损失：二值交叉熵
+- 联合优化，避免多阶段训练
 
-#### 职责
-- 数据加载和预处理
-- SPO三元组标注处理
-- 数据格式转换和标准化
+### 4.2 评估指标
+- 精确率（Precision）
+- 召回率（Recall）
+- F1 分数
+- 基于完整 SPO 三元组的精确匹配
 
-#### 数据格式规范
+## 5. 推理流程
+### 5.1 候选三元组生成
+- 遍历所有可能的主语起始位置
+- 对每个主语位置：
+  1. 预测关系模式
+  2. 识别主语跨度
+  3. 识别宾语跨度
+- 过滤低概率预测
 
-##### 2.2.1 Dataset 返回格式
-每个样本包含以下字段：
-```python
-{
-    # 需要移动到计算设备的 tensor 数据
-    'input_ids': torch.LongTensor,      # 输入token的ID序列
-    'attention_mask': torch.LongTensor,  # 注意力掩码
-    'labels': torch.LongTensor,         # NER标签序列
-    'relation_labels': torch.LongTensor, # 关系标签序列
-    
-    # 不需要移动到计算设备的数据
-    'spo_list': List[Dict]              # SPO三元组列表，用于评估
-}
-```
+### 5.2 后处理
+- 去重
+- 置信度阈值过滤
 
-##### 2.2.2 Batch 数据格式
-DataLoader 的 collate_fn 函数将确保每个 batch 中的数据格式如下：
-```python
-{
-    # 需要移动到计算设备的 tensor 数据（batch_size 为第一维）
-    'input_ids': torch.LongTensor,      # shape: [batch_size, seq_len]
-    'attention_mask': torch.LongTensor,  # shape: [batch_size, seq_len]
-    'labels': torch.LongTensor,         # shape: [batch_size, seq_len]
-    'relation_labels': torch.LongTensor, # shape: [batch_size, seq_len]
-    
-    # 不需要移动到计算设备的数据
-    'spo_list': List[List[Dict]]        # 长度为 batch_size 的列表，每个元素是该样本的 SPO 列表
-}
-```
+## 6. 系统约束与假设
+- 假设输入文本已经进行了必要的预处理
+- 模型不区分实体类型，专注于关系提取
+- 支持多个关系模式的同时预测
 
-#### 关键接口
-```python
-class CMeIEDataset(Dataset):
-    def __getitem__(self, idx) -> Dict[str, Any]:
-        """返回标准化的训练数据"""
-        return {
-            'input_ids': List[int],       # 文本的token ID
-            'attention_mask': List[int],   # 注意力掩码
-            'spo_list': List[Dict]        # SPO三元组列表，每个三元组包含：
-                                         # - spo_pattern: int, 关系模式ID
-                                         # - subject: Dict, 包含：
-                                         #   - text: str, 主体实体文本
-                                         #   - type: int, 主体实体类型ID
-                                         #   - start: int, 主体实体起始位置
-                                         #   - end: int, 主体实体结束位置
-                                         # - object: Dict, 包含：
-                                         #   - @value: str, 客体实体文本
-                                         #   - type: Dict, 包含：
-                                         #     - @value: int, 客体实体类型ID
-                                         #   - start: int, 客体实体起始位置
-                                         #   - end: int, 客体实体结束位置
-                                         # - Combined: bool, 是否为组合关系
-        }
-```
+## 7. 性能与可扩展性
+- 模型设计追求计算效率
+- 预留模型结构调整的灵活性
+- 支持增量学习和迁移学习
 
-### 2.3 数据格式说明
+## 8. 局限性
+- 依赖高质量的训练语料
+- 对长文本和复杂语境的处理能力有限
+- 需要持续的模型微调和评估
 
-#### SPO三元组
-每个 SPO 三元组由以下部分组成：
-- Subject（主体实体）：包含文本、类型、位置信息
-- Predicate（关系类型）：表示主体和客体之间的关系，如"临床表现"、"药物治疗"等
-- Object（客体实体）：包含文本、类型、位置信息
+## 9. 未来改进方向
+- 引入注意力机制增强
+- 探索更复杂的实体和关系联合建模
+- 集成外部知识图谱
 
-#### SPO 关系模式
-- 每个 SPO 关系模式由 (subject_type, predicate, object_type) 三元组唯一确定
-- 例如：("疾病", "临床表现", "症状") 表示一个从疾病到症状的临床表现关系
-- 关系模式的数字ID是由数据集类在初始化时根据三元组字典序排序后自动分配的
-- 同一个关系模式可能出现在多个不同的文本实例中，但每个实例中的具体实体是不同的
+## 10. 模型权重与组件说明
 
-#### 实体类型
-- 每个实体（主体或客体）都有一个类型，如"疾病"、"症状"等
-- 实体类型也会被映射为数字ID，用于模型训练
-- 实体类型的数字ID是由数据集类在初始化时根据类型名称排序后自动分配的
+### 10.1 新增的模型组件
 
-### 2.4 ModernBERT 配置
+为了实现医学文本的实体关系提取任务，我们在原始 ModernBERT 模型的基础上添加了以下组件：
 
-ModernBERT 的配置参数定义在 `ModernBertConfig` 中，主要包括：
+1. **实体范围预测头**：
+   ```
+   - span_classifier.weight
+   - span_classifier.bias
+   ```
+   用于预测文本中的实体跨度和边界。
 
-#### 基础配置
-- `vocab_size`: 词表大小，默认50368
-- `hidden_size`: 隐藏层维度，默认768
-- `num_hidden_layers`: Transformer层数，默认22
-- `num_attention_heads`: 注意力头数，默认12
-- `intermediate_size`: MLP中间层维度，默认1152
+2. **SPO关系模式分类头**：
+   ```
+   - spo_pattern_classifier.weight
+   - spo_pattern_classifier.bias
+   ```
+   用于预测实体之间的关系模式。
 
-#### 注意力机制
-- `attention_dropout`: 注意力dropout率，默认0.0
-- `global_attn_every_n_layers`: 全局注意力层间隔，默认3
-- `local_attention`: 局部注意力窗口大小，默认128
-- `global_rope_theta`: 全局RoPE基数，默认160000.0
-- `local_rope_theta`: 局部RoPE基数，默认10000.0
+### 10.2 模型权重加载注意事项
 
-### 2.5 模型架构特点
+#### 10.2.1 新增组件的权重初始化
+这些组件在加载预训练权重时会显示为"缺少的键"，这是正常的。它们是任务特定的组件，会在训练过程中从随机初始化开始学习。
 
-1. **端到端的三元组抽取**
-   - 直接从文本中提取完整的SPO三元组
-   - 避免实体识别和关系分类的分步处理
-   - 减少误差累积
+#### 10.2.2 未使用的预训练组件
+原始 ModernBERT 模型中的一些预训练任务组件在我们的任务中不会使用：
 
-2. **混合注意力机制**
-   - 交替使用全局注意力和局部注意力
-   - 局部注意力使用滑动窗口机制
-   - 支持Flash Attention 2优化
+1. MLM（掩码语言模型）预测头：
+   ```
+   - head.dense.weight
+   - head.norm.weight
+   ```
 
-3. **位置编码**
-   - 使用RoPE (Rotary Position Embedding)
-   - 支持全局和局部两种尺度的位置编码
+2. MLM 解码器：
+   ```
+   - decoder.bias
+   ```
+这些组件在加载模型时会显示为"未使用的键"，这是正常的。
 
-4. **规范化和激活**
-   - 使用LayerNorm进行归一化
-   - 支持多种激活函数（默认GELU）
-   - 可配置的bias和dropout
+### 10.3 模型加载与配置建议
 
-5. **优化设计**
-   - 支持梯度检查点（gradient checkpointing）
-   - 可选的稀疏预测模式
-   - 编译优化支持
+#### 10.3.1 模型参数管理
+- 模型的固定参数会从预训练模型的 `config.json` 中自动读取
+- **不要** 在配置文件中覆盖模型的固定参数
 
-## 模型架构更新说明
+#### 10.3.2 序列长度与性能优化
+1. **序列长度**
+   - 模型支持最大 8192 tokens
+   - 建议根据实际需求和硬件限制设置 `max_seq_length`
+   - 使用较长序列时需要相应减小 batch size
 
-### 2025-02-03 更新
+2. **性能优化技巧**
+   - 训练时可以禁用 cache (`use_cache: false`)
+   - 使用梯度累积来模拟更大的 batch size
+   - 可以使用 `freeze_backbone` 选择是否冻结预训练模型参数
 
-#### 1. 配置管理
-- 移除了自定义的 `ModernBertConfig` 类，直接使用预训练模型的配置文件
-- 使用 `getattr` 获取配置参数，设置合理的默认值：
-  - `num_labels=5`（默认支持2个实体类型：B-Type1, I-Type1, B-Type2, I-Type2, O）
-  - `num_relations=53`（支持CMeIE数据集的53种关系类型）
+#### 10.3.3 模型输入特点
+- 不需要 `token_type_ids`
+- 使用 `input_ids` 和 `attention_mask` 作为主要输入
 
-#### 2. 模型组件优化
-- **Dropout 和归一化**：
-  - 添加 `classifier_dropout` 用于分类器的输入
-  - 使用 `LayerNorm` 配合 `norm_eps` 和 `norm_bias` 参数
-  - 这些参数直接继承自预训练模型的配置，保持一致性
+### 10.4 模型组件设计原则
 
-- **实体表示计算**：
-  - 移除了实体类型嵌入层，改为直接使用实体的上下文表示
-  - 优化注意力机制的实现，使用更简洁的方式计算实体表示
-  - 使用 `entity_attention` 和 `entity_norm` 组件处理实体表示
+1. **最小化额外参数**
+   - 仅添加必要的任务特定组件
+   - 尽量减少对预训练模型的修改
 
-- **关系分类**：
-  - 简化了关系分类的特征表示，从 `hidden_size * 4` 减少到 `hidden_size * 2`
-  - 移除了实体类型特征的显式编码，改为依赖模型学习隐式特征
-  - 添加 `relation_dropout` 和 `relation_norm` 增强特征的鲁棒性
+2. **保持模块独立性**
+   - 新增组件与预训练模型解耦
+   - 便于模型的可扩展性和维护
 
-#### 3. 损失计算
-- 使用统一的 `CrossEntropyLoss`，移除了自定义权重
-- 优化了有效样本的处理方式：
-  - NER任务：使用 attention_mask 过滤无效位置
-  - 关系分类：使用 -100 标记过滤无效关系
-
-#### 4. 代码优化
-- 移除了冗余的配置和权重相关代码
-- 简化了模型的前向传播逻辑
-- 提高了代码的可读性和维护性
-
-#### 5. 更新原因
-1. **配置简化**：直接使用预训练模型的配置，避免配置不一致导致的问题
-2. **性能考虑**：
-   - 减少了特征维度，降低了计算开销
-   - 使用更高效的注意力机制计算实体表示
-3. **训练稳定性**：
-   - 添加 dropout 和层归一化增强模型鲁棒性
-   - 简化损失计算逻辑，使训练更稳定
-4. **代码质量**：
-   - 提高代码可读性和可维护性
-   - 减少重复代码，遵循 DRY 原则
-
-## 3. 训练流程
-
-### 3.1 数据预处理
-1. 文本分词和编码
-2. SPO三元组标注处理
-3. 数据增强和标准化
-
-### 3.2 模型训练
-1. 批处理数据准备
-2. 前向传播计算损失
-3. 反向传播更新参数
-4. 验证和评估
-
-### 3.3 模型评估
-1. SPO三元组抽取评估
-2. 综合性能评估
-
-## 4. 部署和服务
-
-### 4.1 模型导出
-- 支持ONNX格式
-- 支持TorchScript
-- 权重量化选项
-
-### 4.2 推理服务
-- RESTful API接口
-- 批处理接口
-- 性能监控
+3. **灵活的特征适配**
+   - 利用预训练模型的通用语言表示
+   - 通过轻量级分类器实现特定任务的精准预测
